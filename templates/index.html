@@ -2,12 +2,43 @@
 <html lang="hi">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SWI Guru Quiz Dashboard</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 20px; background: #f4f4f9; }
-        .container { background: white; padding: 20px; border-radius: 8px; max-width: 400px; margin: auto; box-shadow: 0px 0px 10px rgba(0,0,0,0.1); }
-        input, button, select { width: 100%; padding: 10px; margin-top: 10px; box-sizing: border-box; }
-        button { background: #0088cc; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        body { 
+            font-family: Arial, sans-serif; 
+            padding: 15px; 
+            background: #ffffff; 
+            color: #333333; 
+            margin: 0;
+        }
+        .container { 
+            background: #f9f9f9; 
+            padding: 20px; 
+            border-radius: 10px; 
+            max-width: 400px; 
+            margin: auto; 
+            box-shadow: 0px 4px 10px rgba(0,0,0,0.1); 
+        }
+        h2 { text-align: center; color: #0088cc; }
+        label { font-weight: bold; display: block; margin-top: 15px; font-size: 14px; }
+        input, button { 
+            width: 100%; 
+            padding: 12px; 
+            margin-top: 5px; 
+            box-sizing: border-box; 
+            border: 1px solid #ccc; 
+            border-radius: 6px; 
+            font-size: 14px;
+        }
+        button { 
+            background: #0088cc; 
+            color: white; 
+            border: none; 
+            margin-top: 20px; 
+            cursor: pointer; 
+            font-weight: bold; 
+        }
         button:hover { background: #006699; }
     </style>
 </head>
@@ -16,19 +47,19 @@
         <h2>Quiz Control Panel</h2>
         <form action="/start-quiz" method="POST" enctype="multipart/form-data">
             
-            <label><b>Aapka Telegram User ID (Security ke liye):</b></label>
+            <label>Telegram User ID:</label>
             <input type="text" name="admin_id" placeholder="Apna Telegram User ID dalein" required>
 
-            <label><b>Telegram Group ka Username ya ID (Jaise @MyGroup):</b></label>
+            <label>Telegram Group Username:</label>
             <input type="text" name="group_id" placeholder="@GroupUsername" required>
 
-            <label><b>Quiz File (.json, .txt, .pdf):</b></label>
+            <label>Quiz File (.json, .txt, .pdf):</label>
             <input type="file" name="file" required>
             
-            <label><b>Timer (0 se 120 Second):</b></label>
+            <label>Timer (0 - 120 Sec):</label>
             <input type="number" name="timer" value="35" min="0" max="120">
             
-            <label><b>Negative Marking (0 se 1):</b></label>
+            <label>Negative Marking (0 - 1):</label>
             <input type="number" name="negative" value="0.33" step="0.01" min="0" max="1">
             
             <button type="submit">Play Group</button>
