@@ -1,7 +1,7 @@
 import json
 import io
+import requests
 from flask import Flask, request, render_template
-from telegram import Bot
 from pypdf import PdfReader
 
 app = Flask(__name__)
@@ -9,11 +9,8 @@ app = Flask(__name__)
 # --- APNA BOTFATHER WALA TOKEN YAHAN DALEIN ---
 TELEGRAM_TOKEN = "8823022165:AAFo6Dq592mRSVP0-MNU646DdrKgprGMXF8"
 
-# --- APNA TELEGRAM USER ID YAHAN DALEIN (Security ke liye taaki sirf aap chala sakein) ---
-# (Apna User ID nikalne ke liye Telegram par @userinfobot se baat kar sakte hain)
+# --- APNA TELEGRAM USER ID YAHAN DALEIN (Security ke liye) ---
 OWNER_TELEGRAM_ID = "7982692248"
-
-bot = Bot(token=TELEGRAM_TOKEN)
 
 @app.route('/')
 def home():
@@ -22,16 +19,21 @@ def home():
 @app.route('/start-quiz', methods=['POST'])
 def start_quiz():
     try:
-        # Mini App se aane wala data
         admin_id = request.form.get('admin_id', '').strip()
         target_group = request.form.get('group_id', '').strip()
         timer = int(request.form.get('timer', 35))
         
-        # 🔒 SECURITY CHECK: Agar koi aur chalaega toh bot mana kar dega
+        # Security Check
         if admin_id != OWNER_TELEGRAM_ID:
-            return "<h2>❌ Access Denied: Aapke paas is bot ko chalane ki permission nahi hai!</h2>"
+            return "<h2>❌ Access Denied: Aapka Telegram User ID galat hai!</h2>"
 
-        file = request.files['file']
+        if not target_group:
+            return "<h2>❌ Error: Kripya Telegram Group Username dalein (jaise @group)!</h2>"
+
+        file = request.files.get('file')
+        if not file:
+            return "<h2>❌ Error: Koi bhi file select nahi ki gayi hai!</h2>"
+
         file_bytes = file.read()
         file_name = file.filename.lower()
         
@@ -54,19 +56,30 @@ def start_quiz():
         if not questions:
             return "<h2>❌ Error: File se sawal nahi mil paye! Format check karein (✅ check karein).</h2>"
 
-        # Jis group ka naam aapne Mini App mein dala hai, wahan quiz chali jayegi
+        # Telegram Bot API ka use karke group me direct polls bhejna (No timeout error)
+        success_count = 0
         for index, q in enumerate(questions):
-            bot.send_poll(
-                chat_id=target_group,
-                question=f"Q{index+1}: {q['question']}",
-                options=q['options'],
-                type='quiz',
-                correct_option_id=q['correct'],
-                open_period=timer if timer > 0 else None,
-                is_anonymous=False
-            )
+            # Telegram sendPoll API URL
+            url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPoll"
+            
+            payload = {
+                "chat_id": target_group,
+                "question": f"Q{index+1}: {q['question']}",
+                "options": json.dumps(q['options']),
+                "type": "quiz",
+                "correct_option_id": q['correct'],
+                "is_anonymous": False
+            }
+            
+            if timer > 0:
+                payload["open_period"] = timer
 
-        return f"<h2>✅ Success! Quiz '{target_group}' group mein bhej di gayi hai.</h2>"
+            response = requests.post(url, data=payload)
+            if response.status_code == 200:
+                success_count += 1
+
+        return f"<h2>✅ Success! Total {success_count} Quiz Polls '{target_group}' group mein bhej diye gaye hain!</h2>"
+        
     except Exception as e:
         return f"<h2>⚠️ Error aa gaya: {str(e)}</h2>"
 
