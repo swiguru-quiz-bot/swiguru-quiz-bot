@@ -54,20 +54,38 @@ def telegram_webhook():
         if not data:
             return "OK", 200
 
-        # Handle Commands (/stop, /score, /leaderboard)
         if "message" in data:
             msg = data["message"]
             text = msg.get("text", "").strip().lower()
             chat_id = str(msg["chat"]["id"])
             
-            if text.startswith("/stop"):
+            if text.startswith("/start"):
+                welcome_text = (
+                    "👋 **Swagat hai ExamGuru Quiz Bot me!**\n\n"
+                    "🤖 Yeh bot aapko Telegram groups me shandar live quizzes chalane me madad karta hai.\n"
+                    "🔗 https://swiguru-quiz-bot.onrender.com"
+                )
+                send_message(chat_id, welcome_text)
+
+            elif text.startswith("/mystore"):
+                store_text = "📂 **Aapka Quiz Store:**\n🔗 https://swiguru-quiz-bot.onrender.com"
+                send_message(chat_id, store_text)
+
+            elif text.startswith("/help"):
+                help_text = (
+                    "📖 **Help:**\n"
+                    "• /stop - Quiz rokne ke liye\n"
+                    "• /score - Live leaderboard dekhne ke liye"
+                )
+                send_message(chat_id, help_text)
+
+            elif text.startswith("/stop"):
                 stop_requested = True
-                send_message(chat_id, "🛑 *Quiz roki ja rahi hai... Kripya intezaar karein.*")
+                send_message(chat_id, "🛑 *Quiz roak di gayi hai!*")
             
             elif text.startswith("/score") or text.startswith("/leaderboard"):
                 send_leaderboard(chat_id)
 
-        # Handle Live Poll Answers
         elif "poll_answer" in data:
             answer = data["poll_answer"]
             poll_id = str(answer.get("poll_id"))
@@ -229,7 +247,7 @@ def play_group(quiz_id):
     thread.daemon = True
     thread.start()
 
-    return f"<h2>🎉 Live Quiz Shuru! Total {len(questions)} sawal '{target_group}' me bheje ja rahe hain. Stop karne ke liye /stop aur score dekhne ke liye /score type karein.</h2>"
+    return f"<h2>🎉 Live Quiz Shuru! Total {len(questions)} sawal bheje ja rahe hain.</h2>"
 
 def run_live_quiz(chat_id, questions, timer, quiz_id):
     global active_quiz_running, stop_requested
@@ -264,23 +282,34 @@ def run_live_quiz(chat_id, questions, timer, quiz_id):
                 if timer > 0:
                     poll_payload["open_period"] = timer
 
-                try:
-                    res = requests.post(url, data=poll_payload, timeout=10)
-                    if res.status_code == 200:
-                        res_data = res.json()
-                        if "result" in res_data and "poll" in res_data["result"]:
-                            p_id = str(res_data["result"]["poll"]["id"])
-                            scores_collection.insert_one({
-                                "poll_id": p_id,
-                                "quiz_id": quiz_id,
-                                "correct_opt": int(q['correct'])
-                            })
-                    else:
-                        print(f"Telegram Poll Error: {res.text}")
-                except Exception as e:
-                    print(f"Error sending poll: {e}")
+                # Har sawal ko bhejne ke liye 3 baar retry mechanism taaki network issue se skip na ho
+                sent_success = False
+                for attempt in range(3):
+                    if stop_requested:
+                        break
+                    try:
+                        res = requests.post(url, data=poll_payload, timeout=10)
+                        if res.status_code == 200:
+                            sent_success = True
+                            res_data = res.json()
+                            if "result" in res_data and "poll" in res_data["result"]:
+                                p_id = str(res_data["result"]["poll"]["id"])
+                                scores_collection.insert_one({
+                                    "poll_id": p_id,
+                                    "quiz_id": quiz_id,
+                                    "correct_opt": int(q['correct'])
+                                })
+                            break
+                        else:
+                            time.sleep(2)
+                    except Exception:
+                        time.sleep(2)
 
-                wait_time = (timer if timer > 0 else 35) + 2
+                if not sent_success:
+                    print(f"Failed to send Question {index+1} after 3 attempts.")
+
+                # Timer ke hisab se exact wait taaki koi sawal skip na ho
+                wait_time = (timer if timer > 0 else 35) + 3
                 for _ in range(wait_time):
                     if stop_requested:
                         break
