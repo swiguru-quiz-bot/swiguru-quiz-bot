@@ -188,17 +188,20 @@ def run_live_quiz(chat_id, questions, timer):
         try:
             res = requests.post(url, data=payload)
             if res.status_code == 200:
-                wait_time = timer if timer > 0 else 30
+                # यहाँ टाइमर के हिसाब से पूरा इंतज़ार होगा ताकि कोई सवाल स्किप न हो
+                wait_time = (timer if timer > 0 else 30) + 2
                 time.sleep(wait_time)
             else:
-                time.sleep(2)
+                print(f"Failed to send poll, status: {res.status_code}")
+                time.sleep(5)
         except Exception as e:
             print(f"Error sending poll: {e}")
+            time.sleep(5)
 
         if (index + 1) % 10 == 0:
             score_msg = f"📊 *Scoreboard / Progress Update*\n-----------------------------------\n👉 Abhi tak *{index + 1}* sawal poore ho chuke hain (Kul {total_q} me se).\n\nAgle 10 sawal shuru ho rahe hain!"
             send_message(chat_id, score_msg)
-            time.sleep(2)
+            time.sleep(3)
 
     send_message(chat_id, f"🏆 *Quiz Samapt Hui!* Sabhi {total_q} sawal poore ho chuke hain.")
 
@@ -212,24 +215,26 @@ def send_message(chat_id, text):
 
 def parse_text_regex(text):
     parsed = []
-    raw_blocks = re.split(r'\n\s*(?=Q\d+[:\.])', text)
+    raw_blocks = text.split('\n\n')
     if len(raw_blocks) <= 1:
         raw_blocks = [text]
 
     for block in raw_blocks:
-        lines = [line.string.strip() if hasattr(line, 'string') else line.strip() for line in block.split('\n') if line.strip()]
-        lines = [l for l in block.split('\n') if l.strip()]
+        lines = [l.strip() for l in block.split('\n') if l.strip()]
         if len(lines) < 5:
             continue
-        q_line = lines[0].strip()
-        q_text = re.sub(r'^Q\d+[:\.]\s*', '', q_line).strip()
-        options = [o.strip() for o in lines[1:5]]
+        
+        q_lines = lines[:-4]
+        q_text = " ".join(q_lines).strip()
+        
+        options = lines[-4:]
         correct_idx = 0
         cleaned_opts = []
+        
         for i, opt in enumerate(options):
-            if "✅" in opt:
+            if "✅" in opt or "✔" in opt:
                 correct_idx = i
-                opt = opt.replace("✅", "").strip()
+                opt = opt.replace("✅", "").replace("✔", "").strip()
             cleaned_opts.append(opt)
             
         if len(cleaned_opts) >= 2:
