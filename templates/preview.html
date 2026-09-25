@@ -9,8 +9,10 @@
         .container { background: #fff; padding: 20px; border-radius: 10px; max-width: 500px; margin: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         h2 { text-align: center; color: #0088cc; }
         .question-box { background: #fafafa; border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-top: 15px; }
+        .add-box { background: #e8f5e9; border: 1px solid #c8e6c9; padding: 15px; border-radius: 8px; margin-top: 20px; }
         input, select, button { width: 100%; padding: 10px; margin-top: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; font-size: 13px; }
         .btn-save { background: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
+        .btn-add { background: #17a2b8; color: white; border: none; font-weight: bold; cursor: pointer; }
         .btn-delete { background: #dc3545; color: white; border: none; font-weight: bold; cursor: pointer; }
         .play-section { background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 25px; border: 1px solid #bbdefb; }
         .btn-play { background: #0088cc; color: white; border: none; font-size: 15px; font-weight: bold; cursor: pointer; padding: 12px; }
@@ -25,14 +27,41 @@
         <div class="play-section">
             <h3>🚀 Group me Quiz Chalaayein</h3>
             <form action="/play-group/{{ quiz_id }}" method="POST">
-                <label>Target Group Username (@group) ya Chat ID (-100...):</label>
+                <label>Target Group Username (@group) ya Chat ID:</label>
                 <input type="text" name="group_id" placeholder="@Swiquiz" required>
-                <small style="color: #666; font-size: 11px;">Bot us group me Admin hona zaroori hai.</small>
 
                 <label>Timer per Question (Sec):</label>
                 <input type="number" name="timer" value="35" min="0" max="120">
 
                 <button type="submit" class="btn-play">▶️ Play in Group Now</button>
+            </form>
+        </div>
+
+        <!-- Naya Sawaal Jodne ka Form -->
+        <div class="add-box">
+            <h3>➕ Naya Sawaal Jodein</h3>
+            <form action="/add-question/{{ quiz_id }}" method="POST">
+                <label>Sawaal:</label>
+                <input type="text" name="question" placeholder="Sawaal yahan likhein..." required>
+
+                <label>Option 1:</label>
+                <input type="text" name="opt0" placeholder="Option A" required>
+                <label>Option 2:</label>
+                <input type="text" name="opt1" placeholder="Option B" required>
+                <label>Option 3:</label>
+                <input type="text" name="opt2" placeholder="Option C" required>
+                <label>Option 4:</label>
+                <input type="text" name="opt3" placeholder="Option D" required>
+
+                <label>Sahi Jawab:</label>
+                <select name="correct">
+                    <option value="0">Option 1</option>
+                    <option value="1">Option 2</option>
+                    <option value="2">Option 3</option>
+                    <option value="3">Option 4</option>
+                </select>
+
+                <button type="submit" class="btn-add">➕ Sawaal List me Jodein</button>
             </form>
         </div>
 

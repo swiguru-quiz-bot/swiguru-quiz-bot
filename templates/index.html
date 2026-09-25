@@ -14,7 +14,9 @@
         button:hover { background: #006699; }
         .quiz-list { margin-top: 30px; border-top: 2px solid #eee; padding-top: 15px; }
         .quiz-item { background: #eef2f7; padding: 12px; border-radius: 6px; margin-top: 10px; display: flex; justify-content: space-between; align-items: center; }
-        .quiz-item a { text-decoration: none; background: #28a745; color: white; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .quiz-actions { display: flex; gap: 5px; }
+        .quiz-item a { text-decoration: none; background: #28a745; color: white; padding: 6px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; }
+        .quiz-item button { background: #dc3545; color: white; border: none; padding: 6px 10px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-top: 0; cursor: pointer; width: auto; }
     </style>
 </head>
 <body>
@@ -42,7 +44,12 @@
                         <strong>{{ q_data.title }}</strong><br>
                         <small>{{ q_data.questions|length }} Sawaal</small>
                     </div>
-                    <a href="/preview/{{ q_id }}">Review / Play</a>
+                    <div class="quiz-actions">
+                        <a href="/preview/{{ q_id }}">Review</a>
+                        <form action="/delete-quiz/{{ q_id }}" method="POST" style="margin:0;">
+                            <button type="submit" onclick="return confirm('Kya aap poori quiz delete karna chahte hain?');">Delete</button>
+                        </form>
+                    </div>
                 </div>
                 {% endfor %}
             {% else %}
