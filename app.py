@@ -15,13 +15,13 @@ app = Flask(__name__)
 TELEGRAM_TOKEN = "8823022165:AAFo6Dq592mRSVP0-MNU646DdrKgprGMXF8"
 OWNER_TELEGRAM_ID = "7982692248"
 
-# MongoDB Connection (Safe Lazy Initialization with timeout)
+# MongoDB Connection
 MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://singhritesh194_db_user:0j802ayQz30qJqX@cluster0.p83irh9.mongodb.net/?appName=Cluster0")
 client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 db = client["swiguru_quiz_db"]
 quizzes_collection = db["quizzes"]
 
-# Lock variable taaki ek sath multiple quizzes run na ho sakein aur skip hone ki problem na aaye
+# Lock variable taaki multiple threads aapas me na takrayein
 quiz_lock = threading.Lock()
 active_quiz_running = False
 
@@ -165,7 +165,7 @@ def play_group(quiz_id):
         return "<h3>❌ Is quiz me ek bhi sawal nahi hai!</h3>"
 
     if active_quiz_running:
-        return "<h3>⚠️ Ek quiz pehle se chal rahi hai! Kripya uske samapt hone ka intezaar karein.</h3>"
+        return "<h3>⚠️ Ek quiz pehle se chal rahi hai! Kripya uske samapt hone ka intezaار karein.</h3>"
 
     thread = threading.Thread(target=run_live_quiz, args=(target_group, questions, timer))
     thread.daemon = True
@@ -180,14 +180,21 @@ def run_live_quiz(chat_id, questions, timer):
         try:
             total_q = len(questions)
             for index, q in enumerate(questions):
+                # 1. Pehle lamba/bilingual sawal normal message me bhejein (Telegram limit avoid karne ke liye)
+                q_text = q['question']
+                full_msg = f"<b>Q{index+1}/{total_q}:</b>\n{q_text}"
+                send_html_message(chat_id, full_msg)
+                time.sleep(1)
+
+                # 2. Ab chote question ke sath Poll bhejein
                 url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPoll"
                 opts = q.get('options', [])
                 if len(opts) < 2:
                     continue
                     
-                payload = {
+                poll_payload = {
                     "chat_id": chat_id,
-                    "question": f"Q{index+1}/{total_q}: {q['question']}",
+                    "question": f"Q{index+1}/{total_q}: Sahi vikalp chunein / Select option:",
                     "options": json.dumps(opts),
                     "type": "quiz",
                     "correct_option_id": int(q['correct']),
@@ -195,21 +202,16 @@ def run_live_quiz(chat_id, questions, timer):
                 }
                 
                 if timer > 0:
-                    payload["open_period"] = timer
+                    poll_payload["open_period"] = timer
 
-                success = False
-                for attempt in range(3): # Agar network error ho toh 3 baar try karega
-                    try:
-                        res = requests.post(url, data=payload, timeout=10)
-                        if res.status_code == 200:
-                            success = True
-                            break
-                        else:
-                            time.sleep(2)
-                    except Exception:
-                        time.sleep(2)
+                try:
+                    res = requests.post(url, data=poll_payload, timeout=10)
+                    if res.status_code != 200:
+                        print(f"Telegram Poll Error: {res.text}")
+                except Exception as e:
+                    print(f"Error sending poll: {e}")
 
-                # Timer jitna set hai, utni der exact rukna taaki koi sawal skip na ho
+                # Set kiye gaye timer ke hisab se exact wait taaki koi sawal skip na ho
                 wait_time = (timer if timer > 0 else 35) + 2
                 time.sleep(wait_time)
 
@@ -229,6 +231,14 @@ def send_message(chat_id, text):
         requests.post(url, data=payload, timeout=10)
     except Exception as e:
         print(f"Error message error: {e}")
+
+def send_html_message(chat_id, text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+    try:
+        requests.post(url, data=payload, timeout=10)
+    except Exception as e:
+        print(f"HTML message error: {e}")
 
 def parse_text_regex(text):
     parsed = []
