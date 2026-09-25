@@ -20,11 +20,13 @@ MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://singhritesh194_db_user:0j802ay
 client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 db = client["swiguru_quiz_db"]
 quizzes_collection = db["quizzes"]
+scores_collection = db["quiz_scores"] # Users ke scores track karne ke liye collection
 
-# Control variables for locking and stopping quiz
+# Control variables
 quiz_lock = threading.Lock()
 active_quiz_running = False
 stop_requested = False
+current_active_quiz_id = None
 
 def load_quizzes():
     try:
@@ -46,21 +48,62 @@ def home():
     quizzes = load_quizzes()
     return render_template('index.html', quizzes=quizzes, owner_id=OWNER_TELEGRAM_ID)
 
-# Telegram Webhook endpoint to catch commands like /stop
+# Telegram Webhook endpoint for commands (/stop, /score) and poll answers
 @app.route('/webhook', methods=['POST'])
 def telegram_webhook():
     global stop_requested
     try:
         data = request.get_json()
-        if data and "message" in data:
+        if not data:
+            return "OK", 200
+
+        # 1. Handle Commands (/stop, /score)
+        if "message" in data:
             msg = data["message"]
             text = msg.get("text", "").strip()
             chat_id = str(msg["chat"]["id"])
             
-            # Agar koi /stop ya /stop@botname likhe
             if text.startswith("/stop"):
                 stop_requested = True
                 send_message(chat_id, "🛑 *Quiz ko rokne ki request bhej di gayi hai. Agle sawal ke baad quiz roak di jayegi!*")
+            
+            elif text.startswith("/score") or text.startswith("/leaderboard"):
+                send_leaderboard(chat_id)
+
+        # 2. Handle Live Poll Answers from Users (For Leaderboard & Negative Marking)
+        elif "poll_answer" in data:
+            answer = data["poll_answer"]
+            poll_id = answer.get("poll_id")
+            user = answer.get("user", {})
+            user_id = str(user.get("id"))
+            user_name = user.get("first_name", "User")
+            if user.get("last_name"):
+                user_name += f" {user.get('last_name')}"
+            
+            option_ids = answer.get("option_ids", [])
+            if option_ids:
+                selected_opt = option_ids[0]
+                
+                # Check karo ki yeh poll kis quiz ka aur kis question ka hai (Hum ise memory ya DB me track kar sakte hain)
+                # Filhal hum ise global active quiz se match karte hain
+                doc = scores_collection.find_one({"poll_id": poll_id})
+                if doc:
+                    correct_opt = doc.get("correct_opt")
+                    is_correct = (selected_opt == correct_opt)
+                    
+                    # Update user score in DB (+1 for correct, -0.33 for incorrect if negative marking)
+                    scores_collection.update_one(
+                        {"user_id": user_id, "quiz_id": doc.get("quiz_id")},
+                        {
+                            "$set": {"user_name": user_name},
+                            "$inc": {
+                                "correct": 1 if is_correct else 0,
+                                "incorrect": 0 if is_correct else 1,
+                                "score": 1.0 if is_correct else -0.33
+                            }
+                        },
+                        upsert=True
+                    )
     except Exception as e:
         print(f"Webhook Error: {e}")
     return "OK", 200
@@ -168,7 +211,7 @@ def delete_quiz(quiz_id):
 
 @app.route('/play-group/<quiz_id>', methods=['POST'])
 def play_group(quiz_id):
-    global active_quiz_running, stop_requested
+    global active_quiz_running, stop_requested, current_active_quiz_id
     doc = quizzes_collection.find_one({"_id": quiz_id})
     if not doc:
         return "<h3>❌ Quiz nahi mili!</h3>"
@@ -188,20 +231,24 @@ def play_group(quiz_id):
         return "<h3>⚠️ Ek quiz pehle se chal rahi hai! Kripya use /stop karke band karein ya intezaar karein.</h3>"
 
     stop_requested = False
-    thread = threading.Thread(target=run_live_quiz, args=(target_group, questions, timer))
+    current_active_quiz_id = quiz_id
+    
+    # Purane scores clear karein is quiz ke liye
+    scores_collection.delete_many({"quiz_id": quiz_id})
+
+    thread = threading.Thread(target=run_live_quiz, args=(target_group, questions, timer, quiz_id))
     thread.daemon = True
     thread.start()
 
-    return f"<h2>🎉 Live Quiz Shuru Ho Chuki Hai! Total {len(questions)} sawal '{target_group}' group me bheje ja rahe hain. Rokne ke liye /stop likhein.</h2>"
+    return f"<h2>🎉 Live Quiz Shuru Ho Chuki Hai! Total {len(questions)} sawal '{target_group}' group me bheje ja rahe हैं. Score dekhne ke liye /score likhein.</h2>"
 
-def run_live_quiz(chat_id, questions, timer):
+def run_live_quiz(chat_id, questions, timer, quiz_id):
     global active_quiz_running, stop_requested
     with quiz_lock:
         active_quiz_running = True
         try:
             total_q = len(questions)
             for index, q in enumerate(questions):
-                # Agar beech me /stop command di gayi hai toh quiz yahin rok dein
                 if stop_requested:
                     send_message(chat_id, "🛑 *Quiz ko beech me hi rok diya gaya hai!*")
                     break
@@ -230,14 +277,22 @@ def run_live_quiz(chat_id, questions, timer):
 
                 try:
                     res = requests.post(url, data=poll_payload, timeout=10)
-                    if res.status_code != 200:
+                    if res.status_code == 200:
+                        res_data = res.json()
+                        if "result" in res_data and "poll" in res_data["result"]:
+                            poll_id = res_data["result"]["poll"]["id"]
+                            # Poll ID ko correct option ke sath DB me save karein taaki vote track ho sake
+                            scores_collection.insert_one({
+                                "poll_id": poll_id,
+                                "quiz_id": quiz_id,
+                                "correct_opt": int(q['correct'])
+                            })
+                    else:
                         print(f"Telegram Poll Error: {res.text}")
                 except Exception as e:
                     print(f"Error sending poll: {e}")
 
                 wait_time = (timer if timer > 0 else 35) + 2
-                
-                # Timer ke beech me bhi check karte rahein ki kahin /stop toh nahi dabaya gaya
                 for _ in range(wait_time):
                     if stop_requested:
                         break
@@ -248,15 +303,40 @@ def run_live_quiz(chat_id, questions, timer):
                     break
 
                 if (index + 1) % 10 == 0 and (index + 1) < total_q:
-                    score_msg = f"📊 *Scoreboard / Progress Update*\n-----------------------------------\n👉 Abhi तक *{index + 1}* sawal poore ho chuke hain (Kul {total_q} me se).\n\nAgle 10 sawal shuru ho rahe hain!"
+                    score_msg = f"📊 *Scoreboard / Progress Update*\n-----------------------------------\n👉 Abhi tak *{index + 1}* sawal poore ho chuke hain (Kul {total_q} me se).\n\nAgle 10 sawal shuru ho rahe hain!\n💡 Apna score check karne ke liye group me */score* likhein."
                     send_message(chat_id, score_msg)
                     time.sleep(4)
 
             if not stop_requested:
-                send_message(chat_id, f"🏆 *Quiz Samapt Hui!* Sabhi {total_q} sawal poore ho chuke hain.")
+                send_message(chat_id, f"🏆 *Quiz Samapt Hui!* Sabhi {total_q} sawal poore ho chuke hain.\n\n👇 **Final Leaderboard dekhne ke liye /score likhein!**")
+                time.sleep(2)
+                send_leaderboard(chat_id)
         finally:
             active_quiz_running = False
             stop_requested = False
+
+def send_leaderboard(chat_id):
+    global current_active_quiz_id
+    if not current_active_quiz_id:
+        send_message(chat_id, "⚠️ Abhi koi active quiz nahi hai!")
+        return
+
+    top_users = list(scores_collection.find({"quiz_id": current_active_quiz_id}).sort("score", -1).limit(10))
+    if not top_users:
+        send_message(chat_id, "📊 Abhi tak kisi bhi user ne jawab nahi diya hai!")
+        return
+
+    text = "🏆 **QUIZ LEADERBOARD** (With Negative Marking)\n-----------------------------------\n"
+    for rank, user in enumerate(top_users, 1):
+        name = user.get("user_name", "User")
+        score = user.get("score", 0)
+        correct = user.get("correct", 0)
+        incorrect = user.get("incorrect", 0)
+        
+        medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"{rank}."
+        text += f"{medal} *{name}* — Score: *{score:.2f}* (✅ {correct} | ❌ {incorrect})\n"
+
+    send_message(chat_id, text)
 
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -299,7 +379,6 @@ def parse_text_regex(text):
     return parsed
 
 if __name__ == '__main__':
-    # Auto-register webhook with Telegram so commands work instantly
     render_url = os.getenv("RENDER_EXTERNAL_URL", "https://swiguru-quiz-bot.onrender.com")
     try:
         requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={render_url}/webhook")
