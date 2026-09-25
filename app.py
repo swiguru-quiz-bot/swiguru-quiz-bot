@@ -21,9 +21,10 @@ client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 db = client["swiguru_quiz_db"]
 quizzes_collection = db["quizzes"]
 
-# Lock variable taaki multiple threads aapas me na takrayein
+# Control variables for locking and stopping quiz
 quiz_lock = threading.Lock()
 active_quiz_running = False
+stop_requested = False
 
 def load_quizzes():
     try:
@@ -44,6 +45,25 @@ def load_quizzes():
 def home():
     quizzes = load_quizzes()
     return render_template('index.html', quizzes=quizzes, owner_id=OWNER_TELEGRAM_ID)
+
+# Telegram Webhook endpoint to catch commands like /stop
+@app.route('/webhook', methods=['POST'])
+def telegram_webhook():
+    global stop_requested
+    try:
+        data = request.get_json()
+        if data and "message" in data:
+            msg = data["message"]
+            text = msg.get("text", "").strip()
+            chat_id = str(msg["chat"]["id"])
+            
+            # Agar koi /stop ya /stop@botname likhe
+            if text.startswith("/stop"):
+                stop_requested = True
+                send_message(chat_id, "🛑 *Quiz ko rokne ki request bhej di gayi hai. Agle sawal ke baad quiz roak di jayegi!*")
+    except Exception as e:
+        print(f"Webhook Error: {e}")
+    return "OK", 200
 
 @app.route('/upload-quiz', methods=['POST'])
 def upload_quiz():
@@ -148,7 +168,7 @@ def delete_quiz(quiz_id):
 
 @app.route('/play-group/<quiz_id>', methods=['POST'])
 def play_group(quiz_id):
-    global active_quiz_running
+    global active_quiz_running, stop_requested
     doc = quizzes_collection.find_one({"_id": quiz_id})
     if not doc:
         return "<h3>❌ Quiz nahi mili!</h3>"
@@ -165,36 +185,40 @@ def play_group(quiz_id):
         return "<h3>❌ Is quiz me ek bhi sawal nahi hai!</h3>"
 
     if active_quiz_running:
-        return "<h3>⚠️ Ek quiz pehle se chal rahi hai! Kripya uske samapt hone ka intezaار karein.</h3>"
+        return "<h3>⚠️ Ek quiz pehle se chal rahi hai! Kripya use /stop karke band karein ya intezaar karein.</h3>"
 
+    stop_requested = False
     thread = threading.Thread(target=run_live_quiz, args=(target_group, questions, timer))
     thread.daemon = True
     thread.start()
 
-    return f"<h2>🎉 Live Quiz Shuru Ho Chuki Hai! Total {len(questions)} sawal '{target_group}' group me ek-ek karke bheje ja rahe hain.</h2>"
+    return f"<h2>🎉 Live Quiz Shuru Ho Chuki Hai! Total {len(questions)} sawal '{target_group}' group me bheje ja rahe hain. Rokne ke liye /stop likhein.</h2>"
 
 def run_live_quiz(chat_id, questions, timer):
-    global active_quiz_running
+    global active_quiz_running, stop_requested
     with quiz_lock:
         active_quiz_running = True
         try:
             total_q = len(questions)
             for index, q in enumerate(questions):
-                # 1. Pehle lamba/bilingual sawal normal message me bhejein (Telegram limit avoid karne ke liye)
-                q_text = q['question']
-                full_msg = f"<b>Q{index+1}/{total_q}:</b>\n{q_text}"
-                send_html_message(chat_id, full_msg)
-                time.sleep(1)
+                # Agar beech me /stop command di gayi hai toh quiz yahin rok dein
+                if stop_requested:
+                    send_message(chat_id, "🛑 *Quiz ko beech me hi rok diya gaya hai!*")
+                    break
 
-                # 2. Ab chote question ke sath Poll bhejein
                 url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPoll"
                 opts = q.get('options', [])
                 if len(opts) < 2:
                     continue
+                
+                q_text = q['question']
+                prefix = f"Q{index+1}/{total_q}: "
+                max_len = 300 - len(prefix)
+                formatted_q = prefix + (q_text[:max_len] if len(q_text) > max_len else q_text)
                     
                 poll_payload = {
                     "chat_id": chat_id,
-                    "question": f"Q{index+1}/{total_q}: Sahi vikalp chunein / Select option:",
+                    "question": formatted_q,
                     "options": json.dumps(opts),
                     "type": "quiz",
                     "correct_option_id": int(q['correct']),
@@ -211,18 +235,28 @@ def run_live_quiz(chat_id, questions, timer):
                 except Exception as e:
                     print(f"Error sending poll: {e}")
 
-                # Set kiye gaye timer ke hisab se exact wait taaki koi sawal skip na ho
                 wait_time = (timer if timer > 0 else 35) + 2
-                time.sleep(wait_time)
+                
+                # Timer ke beech me bhi check karte rahein ki kahin /stop toh nahi dabaya gaya
+                for _ in range(wait_time):
+                    if stop_requested:
+                        break
+                    time.sleep(1)
+
+                if stop_requested:
+                    send_message(chat_id, "🛑 *Quiz ko beech me hi rok diya gaya hai!*")
+                    break
 
                 if (index + 1) % 10 == 0 and (index + 1) < total_q:
-                    score_msg = f"📊 *Scoreboard / Progress Update*\n-----------------------------------\n👉 Abhi tak *{index + 1}* sawal poore ho chuke hain (Kul {total_q} me se).\n\nAgle 10 sawal shuru ho rahe hain!"
+                    score_msg = f"📊 *Scoreboard / Progress Update*\n-----------------------------------\n👉 Abhi तक *{index + 1}* sawal poore ho chuke hain (Kul {total_q} me se).\n\nAgle 10 sawal shuru ho rahe hain!"
                     send_message(chat_id, score_msg)
                     time.sleep(4)
 
-            send_message(chat_id, f"🏆 *Quiz Samapt Hui!* Sabhi {total_q} sawal poore ho chuke hain.")
+            if not stop_requested:
+                send_message(chat_id, f"🏆 *Quiz Samapt Hui!* Sabhi {total_q} sawal poore ho chuke hain.")
         finally:
             active_quiz_running = False
+            stop_requested = False
 
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
@@ -231,14 +265,6 @@ def send_message(chat_id, text):
         requests.post(url, data=payload, timeout=10)
     except Exception as e:
         print(f"Error message error: {e}")
-
-def send_html_message(chat_id, text):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
-    try:
-        requests.post(url, data=payload, timeout=10)
-    except Exception as e:
-        print(f"HTML message error: {e}")
 
 def parse_text_regex(text):
     parsed = []
@@ -273,5 +299,12 @@ def parse_text_regex(text):
     return parsed
 
 if __name__ == '__main__':
+    # Auto-register webhook with Telegram so commands work instantly
+    render_url = os.getenv("RENDER_EXTERNAL_URL", "https://swiguru-quiz-bot.onrender.com")
+    try:
+        requests.get(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/setWebhook?url={render_url}/webhook")
+    except Exception:
+        pass
+
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
