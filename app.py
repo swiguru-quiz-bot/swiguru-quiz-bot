@@ -15,9 +15,9 @@ app = Flask(__name__)
 TELEGRAM_TOKEN = "8823022165:AAFo6Dq592mRSVP0-MNU646DdrKgprGMXF8"
 OWNER_TELEGRAM_ID = "7982692248"
 
-# MongoDB Connection (Render Environment Variable ya direct URI)
+# MongoDB Connection (Safe Lazy Initialization with timeout)
 MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://singhritesh194_db_user:0j802ayQz30qJqX@cluster0.p83irh9.mongodb.net/?appName=Cluster0")
-client = MongoClient(MONGO_URI)
+client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 db = client["swiguru_quiz_db"]
 quizzes_collection = db["quizzes"]
 
@@ -218,7 +218,6 @@ def parse_text_regex(text):
 
     for block in raw_blocks:
         lines = [line.string.strip() if hasattr(line, 'string') else line.strip() for line in block.split('\n') if line.strip()]
-        # Simple cleanup
         lines = [l for l in block.split('\n') if l.strip()]
         if len(lines) < 5:
             continue
