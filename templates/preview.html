@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Editor & Review</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 15px; background: #f4f6f9; color: #333; margin: 0; }
+        .container { background: #fff; padding: 20px; border-radius: 10px; max-width: 500px; margin: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h2 { text-align: center; color: #0088cc; }
+        .question-box { background: #fafafa; border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-top: 15px; }
+        input, select, button { width: 100%; padding: 10px; margin-top: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; font-size: 13px; }
+        .btn-save { background: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
+        .btn-delete { background: #dc3545; color: white; border: none; font-weight: bold; cursor: pointer; }
+        .play-section { background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 25px; border: 1px solid #bbdefb; }
+        .btn-play { background: #0088cc; color: white; border: none; font-size: 15px; font-weight: bold; cursor: pointer; padding: 12px; }
+        .back-link { display: block; text-align: center; margin-top: 15px; color: #555; text-decoration: none; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>✏️ Quiz Editor: {{ quiz.title }}</h2>
+        <a href="/" class="back-link">⬅️ Dashboard par wapas jayein</a>
+
+        <div class="play-section">
+            <h3>🚀 Group me Quiz Chalaayein</h3>
+            <form action="/play-group/{{ quiz_id }}" method="POST">
+                <label>Target Group Username (@group) ya Chat ID (-100...):</label>
+                <input type="text" name="group_id" placeholder="@Swiquiz" required>
+                <small style="color: #666; font-size: 11px;">Bot us group me Admin hona zaroori hai.</small>
+
+                <label>Timer per Question (Sec):</label>
+                <input type="number" name="timer" value="35" min="0" max="120">
+
+                <button type="submit" class="btn-play">▶️ Play in Group Now</button>
+            </form>
+        </div>
+
+        <h3 style="margin-top: 30px;">📋 Sawaalon ki List ({{ quiz.questions|length }} Sawaal)</h3>
+        
+        {% for q in quiz.questions %}
+        <div class="question-box">
+            <form action="/update-question/{{ quiz_id }}/{{ loop.index0 }}" method="POST">
+                <label><strong>Sawaal {{ loop.index }}:</strong></label>
+                <input type="text" name="question" value="{{ q.question }}" required>
+
+                <label>Option 1:</label>
+                <input type="text" name="opt0" value="{{ q.options[0] }}" required>
+                <label>Option 2:</label>
+                <input type="text" name="opt1" value="{{ q.options[1] }}" required>
+                <label>Option 3:</label>
+                <input type="text" name="opt2" value="{{ q.options[2] }}" required>
+                <label>Option 4:</label>
+                <input type="text" name="opt3" value="{{ q.options[3] }}" required>
+
+                <label>Sahi Jawab:</label>
+                <select name="correct">
+                    <option value="0" {% if q.correct == 0 %}selected{% endif %}>Option 1</option>
+                    <option value="1" {% if q.correct == 1 %}selected{% endif %}>Option 2</option>
+                    <option value="2" {% if q.correct == 2 %}selected{% endif %}>Option 3</option>
+                    <option value="3" {% if q.correct == 3 %}selected{% endif %}>Option 4</option>
+                </select>
+
+                <button type="submit" class="btn-save">💾 Update Sawaal</button>
+            </form>
+
+            <form action="/delete-question/{{ quiz_id }}/{{ loop.index0 }}" method="POST" style="margin-top: 5px;">
+                <button type="submit" class="btn-delete" onclick="return confirm('Kya aap is sawal ko delete karna chahte hain?');">🗑️ Delete Sawaal</button>
+            </form>
+        </div>
+        {% endfor %}
+    </div>
+</body>
+</html>

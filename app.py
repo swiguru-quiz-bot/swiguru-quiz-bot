@@ -3,36 +3,45 @@ import io
 import re
 import time
 import threading
+import os
 import requests
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, redirect, url_for
 from pypdf import PdfReader
 
 app = Flask(__name__)
 
-# --- Apna BotFather wala token aur Telegram User ID yahan daalein ---
+# Yahan apna BotFather wala token aur apna Telegram User ID daalein
 TELEGRAM_TOKEN = "8823022165:AAFo6Dq592mRSVP0-MNU646DdrKgprGMXF8"
 OWNER_TELEGRAM_ID = "7982692248"
 
+QUIZ_FILE_STORE = "quizzes.json"
+
+def load_quizzes():
+    if os.path.exists(QUIZ_FILE_STORE):
+        try:
+            with open(QUIZ_FILE_STORE, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_quizzes(quizzes):
+    with open(QUIZ_FILE_STORE, 'w', encoding='utf-8') as f:
+        json.dump(quizzes, f, ensure_ascii=False, indent=4)
+
 @app.route('/')
 def home():
-    try:
-        return render_template('index.html')
-    except Exception as e:
-        return f"HTML Page Load Error: {str(e)}"
+    quizzes = load_quizzes()
+    return render_template('index.html', quizzes=quizzes, owner_id=OWNER_TELEGRAM_ID)
 
-@app.route('/start-quiz', methods=['POST'])
-def start_quiz():
+@app.route('/upload-quiz', methods=['POST'])
+def upload_quiz():
     try:
         admin_id = request.form.get('admin_id', '').strip()
-        target_group = request.form.get('group_id', '').strip()
-        timer_val = request.form.get('timer', '35')
-        timer = int(timer_val) if timer_val.isdigit() else 35
+        quiz_title = request.form.get('quiz_title', 'Untitled Quiz').strip()
         
         if admin_id != OWNER_TELEGRAM_ID:
             return "<h3>❌ Error: Aapka Telegram User ID galat hai!</h3>"
-
-        if not target_group:
-            return "<h3>❌ Error: Kripya Telegram Group Username dalein!</h3>"
 
         file = request.files.get('file')
         if not file or file.filename == '':
@@ -53,17 +62,73 @@ def start_quiz():
             questions = parse_text_regex(text_content)
             
         if not questions:
-            return "<h3>❌ Error: File se sawal nahi mil paye! Format check karein.</h3>"
+            return "<h3>❌ Error: File se sawal nahi mil paye! Format check karein (Q1:, ✅ zaroor ho).</h3>"
 
-        # Background thread start karenge taaki web request timeout na ho aur live quiz chale
-        thread = threading.Thread(target=run_live_quiz, args=(target_group, questions, timer))
-        thread.daemon = True
-        thread.start()
-
-        return f"<h2>🎉 Live Quiz Shuru Ho Chuki Hai! Total {len(questions)} sawal hain. Bot ek-ek karke group me bhej raha hai aur har 10 sawal par scoreboard aayega.</h2>"
+        quizzes = load_quizzes()
+        quiz_id = str(int(time.time()))
+        quizzes[quiz_id] = {
+            "title": quiz_title,
+            "questions": questions,
+            "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        save_quizzes(quizzes)
+        
+        return redirect(url_for('preview_quiz', quiz_id=quiz_id))
         
     except Exception as e:
-        return f"<h3>⚠️ Server Error: {str(e)}</h3>"
+        return f"<h3>⚠️ Error: {str(e)}</h3>"
+
+@app.route('/preview/<quiz_id>')
+def preview_quiz(quiz_id):
+    quizzes = load_quizzes()
+    if quiz_id not in quizzes:
+        return "<h3>❌ Quiz nahi mili!</h3>"
+    quiz = quizzes[quiz_id]
+    return render_template('preview.html', quiz_id=quiz_id, quiz=quiz, owner_id=OWNER_TELEGRAM_ID)
+
+@app.route('/update-question/<quiz_id>/<int:q_index>', methods=['POST'])
+def update_question(quiz_id, q_index):
+    quizzes = load_quizzes()
+    if quiz_id in quizzes and 0 <= q_index < len(quizzes[quiz_id]['questions']):
+        data = request.form
+        quizzes[quiz_id]['questions'][q_index]['question'] = data.get('question')
+        quizzes[quiz_id]['questions'][q_index]['options'] = [
+            data.get('opt0'), data.get('opt1'), data.get('opt2'), data.get('opt3')
+        ]
+        quizzes[quiz_id]['questions'][q_index]['correct'] = int(data.get('correct'))
+        save_quizzes(quizzes)
+    return redirect(url_for('preview_quiz', quiz_id=quiz_id))
+
+@app.route('/delete-question/<quiz_id>/<int:q_index>', methods=['POST'])
+def delete_question(quiz_id, q_index):
+    quizzes = load_quizzes()
+    if quiz_id in quizzes and 0 <= q_index < len(quizzes[quiz_id]['questions']):
+        quizzes[quiz_id]['questions'].pop(q_index)
+        save_quizzes(quizzes)
+    return redirect(url_for('preview_quiz', quiz_id=quiz_id))
+
+@app.route('/play-group/<quiz_id>', methods=['POST'])
+def play_group(quiz_id):
+    quizzes = load_quizzes()
+    if quiz_id not in quizzes:
+        return "<h3>❌ Quiz nahi mili!</h3>"
+        
+    target_group = request.form.get('group_id', '').strip()
+    timer_val = request.form.get('timer', '35')
+    timer = int(timer_val) if timer_val.isdigit() else 35
+    
+    if not target_group:
+        return "<h3>❌ Kripya Telegram Group Username dalein (jaise @Swiquiz)!</h3>"
+        
+    questions = quizzes[quiz_id]['questions']
+    if not questions:
+        return "<h3>❌ Is quiz me ek bhi sawal nahi hai!</h3>"
+
+    thread = threading.Thread(target=run_live_quiz, args=(target_group, questions, timer))
+    thread.daemon = True
+    thread.start()
+
+    return f"<h2>🎉 Live Quiz Shuru Ho Chuki Hai! Total {len(questions)} sawal '{target_group}' group me bheje ja rahe hain.</h2>"
 
 def run_live_quiz(chat_id, questions, timer):
     total_q = len(questions)
@@ -88,7 +153,6 @@ def run_live_quiz(chat_id, questions, timer):
         try:
             res = requests.post(url, data=payload)
             if res.status_code == 200:
-                # Timer jitna set hai utna wait karenge taaki log vote kar sakein
                 wait_time = timer if timer > 0 else 30
                 time.sleep(wait_time)
             else:
@@ -96,24 +160,14 @@ def run_live_quiz(chat_id, questions, timer):
         except Exception as e:
             print(f"Error sending poll: {e}")
 
-        # Har 10 sawal ke baad scoreboard message bhejna
         if (index + 1) % 10 == 0:
-            send_scoreboard_message(chat_id, index + 1, total_q)
+            send_message(chat_id, f"📊 **Scoreboard / Progress Update**\n-----------------------------------\n👉 Abhi tak **{index + 1}** sawal poore ho chuke hain (Kul {total_q} me se).\n\nAgle 10 sawal shuru ho rahe hain!")
 
-    # Quiz khatam hone par final message
-    send_message(chat_id, f"🏆 **Quiz Samapt Hui!** Sabhi 110 sawal poore ho chuke hain.")
-
-def send_scoreboard_message(chat_id, current_q, total_q):
-    msg = f"📊 **Scoreboard / Progress Update**\n-----------------------------------\n👉 Abhi tak **{current_q}** sawal poore ho chuke hain (Kul {total_q} me se).\n\nAgલે 10 sawal shuru ho rahe hain, taiyar rahiye!"
-    send_message(chat_id, msg)
+    send_message(chat_id, f"🏆 **Quiz Samapt Hui!** Sabhi {total_q} sawal poore ho chuke hain.")
 
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {
-        "chat_id": chat_id,
-        "text": text,
-        "parse_mode": "Markdown"
-    }
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
     try:
         requests.post(url, data=payload)
     except Exception as e:

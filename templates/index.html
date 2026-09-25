@@ -3,115 +3,52 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SWI Guru Quiz Dashboard</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <title>ExamGuru Quiz Dashboard</title>
     <style>
-        body { 
-            font-family: Arial, sans-serif; 
-            padding: 15px; 
-            background: #ffffff; 
-            color: #333333; 
-            margin: 0;
-        }
-        .container { 
-            background: #f9f9f9; 
-            padding: 20px; 
-            border-radius: 10px; 
-            max-width: 400px; 
-            margin: auto; 
-            box-shadow: 0px 4px 10px rgba(0,0,0,0.1); 
-        }
+        body { font-family: Arial, sans-serif; padding: 15px; background: #f4f6f9; color: #333; margin: 0; }
+        .container { background: #fff; padding: 20px; border-radius: 10px; max-width: 450px; margin: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
         h2 { text-align: center; color: #0088cc; }
         label { font-weight: bold; display: block; margin-top: 15px; font-size: 14px; }
-        input, button { 
-            width: 100%; 
-            padding: 12px; 
-            margin-top: 5px; 
-            box-sizing: border-box; 
-            border: 1px solid #ccc; 
-            border-radius: 6px; 
-            font-size: 14px;
-        }
-        button { 
-            background: #0088cc; 
-            color: white; 
-            border: none; 
-            margin-top: 20px; 
-            cursor: pointer; 
-            font-weight: bold; 
-        }
+        input, button { width: 100%; padding: 12px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+        button { background: #0088cc; color: white; border: none; margin-top: 20px; cursor: pointer; font-weight: bold; }
         button:hover { background: #006699; }
-        #status-box {
-            margin-top: 15px;
-            padding: 10px;
-            border-radius: 5px;
-            text-align: center;
-            font-weight: bold;
-            display: none;
-        }
+        .quiz-list { margin-top: 30px; border-top: 2px solid #eee; padding-top: 15px; }
+        .quiz-item { background: #eef2f7; padding: 12px; border-radius: 6px; margin-top: 10px; display: flex; justify-content: space-between; align-items: center; }
+        .quiz-item a { text-decoration: none; background: #28a745; color: white; padding: 6px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>Quiz Control Panel</h2>
-        <form id="quiz-form">
-            
+        <h2>ExamGuru Control Panel</h2>
+        <form action="/upload-quiz" method="POST" enctype="multipart/form-data">
             <label>Telegram User ID:</label>
-            <input type="text" id="admin_id" name="admin_id" placeholder="Apna Telegram User ID dalein" required>
+            <input type="text" name="admin_id" value="{{ owner_id }}" required>
 
-            <label>Telegram Group Username:</label>
-            <input type="text" id="group_id" name="group_id" placeholder="@GroupUsername" required>
+            <label>Quiz Title / Name:</label>
+            <input type="text" name="quiz_title" placeholder="Jaise: Railway Leave Rules" required>
 
-            <label>Quiz File (.json, .txt, .pdf):</label>
-            <input type="file" id="file" name="file" required>
+            <label>Upload Quiz File (.json, .txt, .pdf):</label>
+            <input type="file" name="file" required>
             
-            <label>Timer (0 - 120 Sec):</label>
-            <input type="number" id="timer" name="timer" value="35" min="0" max="120">
-            
-            <label>Negative Marking (0 - 1):</label>
-            <input type="number" id="negative" name="negative" value="0.33" step="0.01" min="0" max="1">
-            
-            <button type="button" id="submit-btn" onclick="sendQuiz()">Play Group</button>
+            <button type="submit">Upload & Review Quiz</button>
         </form>
-        <div id="status-box"></div>
+
+        <div class="quiz-list">
+            <h3>📚 Saved Quizzes Library</h3>
+            {% if quizzes %}
+                {% for q_id, q_data in quizzes.items() %}
+                <div class="quiz-item">
+                    <div>
+                        <strong>{{ q_data.title }}</strong><br>
+                        <small>{{ q_data.questions|length }} Sawaal</small>
+                    </div>
+                    <a href="/preview/{{ q_id }}">Review / Play</a>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="color: #777; font-size: 13px;">Abhi koi quiz saved nahi hai.</p>
+            {% endif %}
+        </div>
     </div>
-
-    <script>
-        let tg = window.Telegram.WebApp;
-        tg.expand(); // Mini App ko pura bada kholne ke liye
-
-        function sendQuiz() {
-            let form = document.getElementById('quiz-form');
-            let formData = new FormData(form);
-            let statusBox = document.getElementById('status-box');
-            let btn = document.getElementById('submit-btn');
-
-            statusBox.style.display = "block";
-            statusBox.style.background = "#fff3cd";
-            statusBox.style.color = "#856404";
-            statusBox.innerText = "⏳ Quiz group mein bheji ja rahi hai, kripya intezar karein...";
-            btn.disabled = true;
-
-            fetch('/start-quiz', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.text())
-            .then(data => {
-                statusBox.style.display = "block";
-                statusBox.style.background = "#d4edda";
-                statusBox.style.color = "#155724";
-                statusBox.innerHTML = data;
-                btn.disabled = false;
-            })
-            .catch(error => {
-                statusBox.style.display = "block";
-                statusBox.style.background = "#f8d7da";
-                statusBox.style.color = "#721c24";
-                statusBox.innerText = "❌ Error: " + error;
-                btn.disabled = false;
-            });
-        }
-    </script>
 </body>
 </html>
