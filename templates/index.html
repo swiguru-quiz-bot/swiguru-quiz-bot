@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SWI Guru Quiz Dashboard</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body { 
             font-family: Arial, sans-serif; 
@@ -40,30 +41,77 @@
             font-weight: bold; 
         }
         button:hover { background: #006699; }
+        #status-box {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+            display: none;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h2>Quiz Control Panel</h2>
-        <form action="/start-quiz" method="POST" enctype="multipart/form-data">
+        <form id="quiz-form">
             
             <label>Telegram User ID:</label>
-            <input type="text" name="admin_id" placeholder="Apna Telegram User ID dalein" required>
+            <input type="text" id="admin_id" name="admin_id" placeholder="Apna Telegram User ID dalein" required>
 
             <label>Telegram Group Username:</label>
-            <input type="text" name="group_id" placeholder="@GroupUsername" required>
+            <input type="text" id="group_id" name="group_id" placeholder="@GroupUsername" required>
 
             <label>Quiz File (.json, .txt, .pdf):</label>
-            <input type="file" name="file" required>
+            <input type="file" id="file" name="file" required>
             
             <label>Timer (0 - 120 Sec):</label>
-            <input type="number" name="timer" value="35" min="0" max="120">
+            <input type="number" id="timer" name="timer" value="35" min="0" max="120">
             
             <label>Negative Marking (0 - 1):</label>
-            <input type="number" name="negative" value="0.33" step="0.01" min="0" max="1">
+            <input type="number" id="negative" name="negative" value="0.33" step="0.01" min="0" max="1">
             
-            <button type="submit">Play Group</button>
+            <button type="button" id="submit-btn" onclick="sendQuiz()">Play Group</button>
         </form>
+        <div id="status-box"></div>
     </div>
+
+    <script>
+        let tg = window.Telegram.WebApp;
+        tg.expand(); // Mini App ko pura bada kholne ke liye
+
+        function sendQuiz() {
+            let form = document.getElementById('quiz-form');
+            let formData = new FormData(form);
+            let statusBox = document.getElementById('status-box');
+            let btn = document.getElementById('submit-btn');
+
+            statusBox.style.display = "block";
+            statusBox.style.background = "#fff3cd";
+            statusBox.style.color = "#856404";
+            statusBox.innerText = "⏳ Quiz group mein bheji ja rahi hai, kripya intezar karein...";
+            btn.disabled = true;
+
+            fetch('/start-quiz', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                statusBox.style.display = "block";
+                statusBox.style.background = "#d4edda";
+                statusBox.style.color = "#155724";
+                statusBox.innerHTML = data;
+                btn.disabled = false;
+            })
+            .catch(error => {
+                statusBox.style.display = "block";
+                statusBox.style.background = "#f8d7da";
+                statusBox.style.color = "#721c24";
+                statusBox.innerText = "❌ Error: " + error;
+                btn.disabled = false;
+            });
+        }
+    </script>
 </body>
 </html>
