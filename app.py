@@ -21,6 +21,10 @@ client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
 db = client["swiguru_quiz_db"]
 quizzes_collection = db["quizzes"]
 
+# Lock variable taaki ek sath multiple quizzes run na ho sakein aur skip hone ki problem na aaye
+quiz_lock = threading.Lock()
+active_quiz_running = False
+
 def load_quizzes():
     try:
         quizzes = {}
@@ -144,6 +148,7 @@ def delete_quiz(quiz_id):
 
 @app.route('/play-group/<quiz_id>', methods=['POST'])
 def play_group(quiz_id):
+    global active_quiz_running
     doc = quizzes_collection.find_one({"_id": quiz_id})
     if not doc:
         return "<h3>❌ Quiz nahi mili!</h3>"
@@ -159,57 +164,69 @@ def play_group(quiz_id):
     if not questions:
         return "<h3>❌ Is quiz me ek bhi sawal nahi hai!</h3>"
 
+    if active_quiz_running:
+        return "<h3>⚠️ Ek quiz pehle se chal rahi hai! Kripya uske samapt hone ka intezaar karein.</h3>"
+
     thread = threading.Thread(target=run_live_quiz, args=(target_group, questions, timer))
     thread.daemon = True
     thread.start()
 
-    return f"<h2>🎉 Live Quiz Shuru Ho Chuki Hai! Total {len(questions)} sawal '{target_group}' group me bheje ja rahe hain.</h2>"
+    return f"<h2>🎉 Live Quiz Shuru Ho Chuki Hai! Total {len(questions)} sawal '{target_group}' group me ek-ek karke bheje ja rahe hain.</h2>"
 
 def run_live_quiz(chat_id, questions, timer):
-    total_q = len(questions)
-    for index, q in enumerate(questions):
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPoll"
-        opts = q.get('options', [])
-        if len(opts) < 2:
-            continue
-            
-        payload = {
-            "chat_id": chat_id,
-            "question": f"Q{index+1}/{total_q}: {q['question']}",
-            "options": json.dumps(opts),
-            "type": "quiz",
-            "correct_option_id": int(q['correct']),
-            "is_anonymous": False
-        }
-        
-        if timer > 0:
-            payload["open_period"] = timer
-
+    global active_quiz_running
+    with quiz_lock:
+        active_quiz_running = True
         try:
-            res = requests.post(url, data=payload)
-            if res.status_code == 200:
-                # यहाँ टाइमर के हिसाब से पूरा इंतज़ार होगा ताकि कोई सवाल स्किप न हो
-                wait_time = (timer if timer > 0 else 30) + 2
+            total_q = len(questions)
+            for index, q in enumerate(questions):
+                url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPoll"
+                opts = q.get('options', [])
+                if len(opts) < 2:
+                    continue
+                    
+                payload = {
+                    "chat_id": chat_id,
+                    "question": f"Q{index+1}/{total_q}: {q['question']}",
+                    "options": json.dumps(opts),
+                    "type": "quiz",
+                    "correct_option_id": int(q['correct']),
+                    "is_anonymous": False
+                }
+                
+                if timer > 0:
+                    payload["open_period"] = timer
+
+                success = False
+                for attempt in range(3): # Agar network error ho toh 3 baar try karega
+                    try:
+                        res = requests.post(url, data=payload, timeout=10)
+                        if res.status_code == 200:
+                            success = True
+                            break
+                        else:
+                            time.sleep(2)
+                    except Exception:
+                        time.sleep(2)
+
+                # Timer jitna set hai, utni der exact rukna taaki koi sawal skip na ho
+                wait_time = (timer if timer > 0 else 35) + 2
                 time.sleep(wait_time)
-            else:
-                print(f"Failed to send poll, status: {res.status_code}")
-                time.sleep(5)
-        except Exception as e:
-            print(f"Error sending poll: {e}")
-            time.sleep(5)
 
-        if (index + 1) % 10 == 0:
-            score_msg = f"📊 *Scoreboard / Progress Update*\n-----------------------------------\n👉 Abhi tak *{index + 1}* sawal poore ho chuke hain (Kul {total_q} me se).\n\nAgle 10 sawal shuru ho rahe hain!"
-            send_message(chat_id, score_msg)
-            time.sleep(3)
+                if (index + 1) % 10 == 0 and (index + 1) < total_q:
+                    score_msg = f"📊 *Scoreboard / Progress Update*\n-----------------------------------\n👉 Abhi tak *{index + 1}* sawal poore ho chuke hain (Kul {total_q} me se).\n\nAgle 10 sawal shuru ho rahe hain!"
+                    send_message(chat_id, score_msg)
+                    time.sleep(4)
 
-    send_message(chat_id, f"🏆 *Quiz Samapt Hui!* Sabhi {total_q} sawal poore ho chuke hain.")
+            send_message(chat_id, f"🏆 *Quiz Samapt Hui!* Sabhi {total_q} sawal poore ho chuke hain.")
+        finally:
+            active_quiz_running = False
 
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
     try:
-        requests.post(url, data=payload)
+        requests.post(url, data=payload, timeout=10)
     except Exception as e:
         print(f"Error message error: {e}")
 
