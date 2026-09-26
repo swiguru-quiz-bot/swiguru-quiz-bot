@@ -436,7 +436,7 @@ def send_leaderboard(chat_id):
         send_message(chat_id, "⚠️ No active quiz record found! / कोई सक्रिय क्विज़ रिकॉर्ड नहीं है!")
         return
 
-    top_users = list(scores_collection.find({"quiz_id": current_active_quiz_id, "score": {"$exists": True}}).sort("score", -1).limit(10))
+    top_users = list(scores_collection.find({"quiz_id": current_active_quiz_id, "score": {"$exists": True}}).sort("score", -1).limit(100))
     if not top_users:
         send_message(chat_id, "📊 No one has answered yet! / अभी तक किसी ने उत्तर नहीं दिया है!")
         return
