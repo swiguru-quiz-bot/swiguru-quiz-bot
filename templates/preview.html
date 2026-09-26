@@ -3,24 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quiz Preview - ExamGuru</title>
+    <title>Quiz Preview & Edit - ExamGuru</title>
     <style>
         body { background-color: #121212; color: #fff; font-family: sans-serif; padding: 20px; }
-        .container { max-width: 600px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 8px; border: 1px solid #333; }
+        .container { max-width: 700px; margin: 0 auto; background: #1e1e1e; padding: 25px; border-radius: 8px; border: 1px solid #333; }
         .form-group { margin-bottom: 15px; }
-        label { display: block; margin-bottom: 5px; color: #ccc; }
-        input, select { width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 5px; box-sizing: border-box; }
+        label { display: block; margin-bottom: 5px; color: #ccc; font-weight: bold; }
+        input, select, textarea { width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 5px; box-sizing: border-box; font-size: 14px; }
         button { background: #4caf50; color: white; padding: 12px; border: none; border-radius: 5px; width: 100%; font-weight: bold; cursor: pointer; font-size: 16px; }
         button:hover { background: #43a047; }
+        .question-card { background: #252525; padding: 15px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #383838; }
+        .btn-danger { background: #f44336; padding: 8px 15px; width: auto; font-size: 14px; }
+        .btn-danger:hover { background: #d32f2f; }
+        .btn-primary { background: #2196f3; padding: 10px; width: auto; }
+        .btn-primary:hover { background: #1976d2; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>{{ quiz.title }}</h2>
-        <p>Total Questions: <b>{{ quiz.questions|length }}</b></p>
+        <h2>📊 {{ quiz.title }}</h2>
+        <p>Total Questions / कुल सवाल: <b>{{ quiz.questions|length }}</b></p>
         
-        <form action="/play-group/{{ quiz_id }}" method="POST" style="background: #252525; padding: 15px; border-radius: 6px; margin-top: 20px;">
-            <h3>🚀 Start Live Quiz in Group</h3>
+        <!-- Start Live Quiz Form -->
+        <form action="/play-group/{{ quiz_id }}" method="POST" style="background: #252525; padding: 20px; border-radius: 6px; margin-top: 20px; border: 1px solid #444;">
+            <h3 style="color: #4caf50; margin-top: 0;">🚀 Start Live Quiz in Group</h3>
             
             <div class="form-group">
                 <label>Admin Telegram User ID:</label>
@@ -49,9 +55,88 @@
 
             <button type="submit">Start Live Quiz Now / लाइव क्विज़ शुरू करें</button>
         </form>
+
+        <hr style="border: 0; border-top: 1px solid #444; margin: 30px 0;">
+
+        <h3>✏️ Edit / Modify Questions (सवाल संपादित करें)</h3>
+
+        <!-- Existing Questions Loop -->
+        {% for q in quiz.questions %}
+        <div class="question-card">
+            <form action="/update-question/{{ quiz_id }}/{{ loop.index0 }}" method="POST">
+                <div class="form-group">
+                    <label>Question {{ loop.index }}:</label>
+                    <textarea name="question" rows="2" required>{{ q.question }}</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>Option A:</label>
+                    <input type="text" name="opt0" value="{{ q.options[0] }}" required>
+                </div>
+                <div class="form-group">
+                    <label>Option B:</label>
+                    <input type="text" name="opt1" value="{{ q.options[1] }}" required>
+                </div>
+                <div class="form-group">
+                    <label>Option C:</label>
+                    <input type="text" name="opt2" value="{{ q.options[2] if q.options|length > 2 else '' }}">
+                </div>
+                <div class="form-group">
+                    <label>Option D:</label>
+                    <input type="text" name="opt3" value="{{ q.options[3] if q.options|length > 3 else '' }}">
+                </div>
+
+                <div class="form-group">
+                    <label>Correct Option (0 = A, 1 = B, 2 = C, 3 = D):</label>
+                    <input type="number" name="correct" min="0" max="3" value="{{ q.correct }}" required style="width: 100px;">
+                </div>
+
+                <div style="display: flex; gap: 10px;">
+                    <button type="submit" class="btn-primary" style="flex: 1;">Update Question / अपडेट करें</button>
+            </form>
+                    <form action="/delete-question/{{ quiz_id }}/{{ loop.index0 }}" method="POST" style="flex: 1; margin: 0;">
+                        <button type="submit" class="btn-danger" style="width: 100%;" onclick="return confirm('Kya aap is sawal ko delete karna chahte hain?');">Delete Sawal</button>
+                    </form>
+                </div>
+        </div>
+        {% endfor %}
+
+        <hr style="border: 0; border-top: 1px solid #444; margin: 30px 0;">
+
+        <!-- Add New Question Form -->
+        <div class="question-card" style="border: 2px dashed #4caf50;">
+            <h3 style="color: #4caf50; margin-top: 0;">➕ Add New Question / नया सवाल जोड़ें</h3>
+            <form action="/add-question/{{ quiz_id }}" method="POST">
+                <div class="form-group">
+                    <label>New Question:</label>
+                    <textarea name="question" rows="2" placeholder="Naya sawal yahan likhein..." required></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Option A:</label>
+                    <input type="text" name="opt0" required>
+                </div>
+                <div class="form-group">
+                    <label>Option B:</label>
+                    <input type="text" name="opt1" required>
+                </div>
+                <div class="form-group">
+                    <label>Option C:</label>
+                    <input type="text" name="opt2">
+                </div>
+                <div class="form-group">
+                    <label>Option D:</label>
+                    <input type="text" name="opt3">
+                </div>
+                <div class="form-group">
+                    <label>Correct Option (0 = A, 1 = B, 2 = C, 3 = D):</label>
+                    <input type="number" name="correct" min="0" max="3" value="0" required style="width: 100px;">
+                </div>
+                <button type="submit">Add Question to Quiz / सवाल जोड़ें</button>
+            </form>
+        </div>
         
         <br>
-        <a href="/" style="color: #2196f3; text-decoration: none;">← Back to Home / होम पेज पर जाएं</a>
+        <a href="/" style="display: inline-block; margin-top: 15px; color: #2196f3; text-decoration: none; font-weight: bold;">← Back to Home / होम पेज पर जाएं</a>
     </div>
 </body>
 </html>
