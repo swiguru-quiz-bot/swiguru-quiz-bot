@@ -3,101 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quiz Editor & Review</title>
+    <title>Quiz Preview - ExamGuru</title>
     <style>
-        body { font-family: Arial, sans-serif; padding: 15px; background: #f4f6f9; color: #333; margin: 0; }
-        .container { background: #fff; padding: 20px; border-radius: 10px; max-width: 500px; margin: auto; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        h2 { text-align: center; color: #0088cc; }
-        .question-box { background: #fafafa; border: 1px solid #ddd; padding: 15px; border-radius: 8px; margin-top: 15px; }
-        .add-box { background: #e8f5e9; border: 1px solid #c8e6c9; padding: 15px; border-radius: 8px; margin-top: 20px; }
-        input, select, button { width: 100%; padding: 10px; margin-top: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; font-size: 13px; }
-        .btn-save { background: #28a745; color: white; border: none; font-weight: bold; cursor: pointer; }
-        .btn-add { background: #17a2b8; color: white; border: none; font-weight: bold; cursor: pointer; }
-        .btn-delete { background: #dc3545; color: white; border: none; font-weight: bold; cursor: pointer; }
-        .play-section { background: #e3f2fd; padding: 15px; border-radius: 8px; margin-top: 25px; border: 1px solid #bbdefb; }
-        .btn-play { background: #0088cc; color: white; border: none; font-size: 15px; font-weight: bold; cursor: pointer; padding: 12px; }
-        .back-link { display: block; text-align: center; margin-top: 15px; color: #555; text-decoration: none; font-size: 13px; }
+        body { background-color: #121212; color: #fff; font-family: sans-serif; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 8px; border: 1px solid #333; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; color: #ccc; }
+        input, select { width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 5px; box-sizing: border-box; }
+        button { background: #4caf50; color: white; padding: 12px; border: none; border-radius: 5px; width: 100%; font-weight: bold; cursor: pointer; font-size: 16px; }
+        button:hover { background: #43a047; }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>✏️ Quiz Editor: {{ quiz.title }}</h2>
-        <a href="/" class="back-link">⬅️ Dashboard par wapas jayein</a>
-
-        <div class="play-section">
-            <h3>🚀 Group me Quiz Chalaayein</h3>
-            <form action="/play-group/{{ quiz_id }}" method="POST">
-                <label>Target Group Username (@group) ya Chat ID:</label>
-                <input type="text" name="group_id" placeholder="@Swiquiz" required>
-
-                <label>Timer per Question (Sec):</label>
-                <input type="number" name="timer" value="35" min="0" max="120">
-
-                <button type="submit" class="btn-play">▶️ Play in Group Now</button>
-            </form>
-        </div>
-
-        <!-- Naya Sawaal Jodne ka Form -->
-        <div class="add-box">
-            <h3>➕ Naya Sawaal Jodein</h3>
-            <form action="/add-question/{{ quiz_id }}" method="POST">
-                <label>Sawaal:</label>
-                <input type="text" name="question" placeholder="Sawaal yahan likhein..." required>
-
-                <label>Option 1:</label>
-                <input type="text" name="opt0" placeholder="Option A" required>
-                <label>Option 2:</label>
-                <input type="text" name="opt1" placeholder="Option B" required>
-                <label>Option 3:</label>
-                <input type="text" name="opt2" placeholder="Option C" required>
-                <label>Option 4:</label>
-                <input type="text" name="opt3" placeholder="Option D" required>
-
-                <label>Sahi Jawab:</label>
-                <select name="correct">
-                    <option value="0">Option 1</option>
-                    <option value="1">Option 2</option>
-                    <option value="2">Option 3</option>
-                    <option value="3">Option 4</option>
-                </select>
-
-                <button type="submit" class="btn-add">➕ Sawaal List me Jodein</button>
-            </form>
-        </div>
-
-        <h3 style="margin-top: 30px;">📋 Sawaalon ki List ({{ quiz.questions|length }} Sawaal)</h3>
+        <h2>{{ quiz.title }}</h2>
+        <p>Total Questions: <b>{{ quiz.questions|length }}</b></p>
         
-        {% for q in quiz.questions %}
-        <div class="question-box">
-            <form action="/update-question/{{ quiz_id }}/{{ loop.index0 }}" method="POST">
-                <label><strong>Sawaal {{ loop.index }}:</strong></label>
-                <input type="text" name="question" value="{{ q.question }}" required>
+        <form action="/play-group/{{ quiz_id }}" method="POST" style="background: #252525; padding: 15px; border-radius: 6px; margin-top: 20px;">
+            <h3>🚀 Start Live Quiz in Group</h3>
+            
+            <div class="form-group">
+                <label>Admin Telegram User ID:</label>
+                <input type="text" name="admin_id" value="{{ owner_id }}" required>
+            </div>
 
-                <label>Option 1:</label>
-                <input type="text" name="opt0" value="{{ q.options[0] }}" required>
-                <label>Option 2:</label>
-                <input type="text" name="opt1" value="{{ q.options[1] }}" required>
-                <label>Option 3:</label>
-                <input type="text" name="opt2" value="{{ q.options[2] }}" required>
-                <label>Option 4:</label>
-                <input type="text" name="opt3" value="{{ q.options[3] }}" required>
+            <div class="form-group">
+                <label>Telegram Group Username (e.g., @exam_group):</label>
+                <input type="text" name="group_id" placeholder="@group_username" required>
+            </div>
 
-                <label>Sahi Jawab:</label>
-                <select name="correct">
-                    <option value="0" {% if q.correct == 0 %}selected{% endif %}>Option 1</option>
-                    <option value="1" {% if q.correct == 1 %}selected{% endif %}>Option 2</option>
-                    <option value="2" {% if q.correct == 2 %}selected{% endif %}>Option 3</option>
-                    <option value="3" {% if q.correct == 3 %}selected{% endif %}>Option 4</option>
+            <div class="form-group">
+                <label>Timer per Question (Seconds):</label>
+                <input type="text" name="timer" value="35" required>
+            </div>
+
+            <div class="form-group">
+                <label>Negative Marking:</label>
+                <select name="negative_marking">
+                    <option value="-0.33">-0.33 (1/3th)</option>
+                    <option value="-0.25">-0.25 (1/4th)</option>
+                    <option value="-0.5">-0.5 (1/2th)</option>
+                    <option value="0">0 (No Negative Marking)</option>
                 </select>
+            </div>
 
-                <button type="submit" class="btn-save">💾 Update Sawaal</button>
-            </form>
-
-            <form action="/delete-question/{{ quiz_id }}/{{ loop.index0 }}" method="POST" style="margin-top: 5px;">
-                <button type="submit" class="btn-delete" onclick="return confirm('Kya aap is sawal ko delete karna chahte hain?');">🗑️ Delete Sawaal</button>
-            </form>
-        </div>
-        {% endfor %}
+            <button type="submit">Start Live Quiz Now / लाइव क्विज़ शुरू करें</button>
+        </form>
+        
+        <br>
+        <a href="/" style="color: #2196f3; text-decoration: none;">← Back to Home / होम पेज पर जाएं</a>
     </div>
 </body>
 </html>

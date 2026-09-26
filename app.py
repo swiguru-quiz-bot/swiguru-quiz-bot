@@ -25,6 +25,7 @@ quiz_lock = threading.Lock()
 active_quiz_running = False
 stop_requested = False
 current_active_quiz_id = None
+current_negative_marking = -0.33 # Default negative marking
 
 def load_quizzes():
     try:
@@ -48,7 +49,7 @@ def home():
 
 @app.route('/webhook', methods=['POST'])
 def telegram_webhook():
-    global stop_requested
+    global stop_requested, current_negative_marking
     try:
         data = request.get_json(force=True, silent=True)
         if not data:
@@ -112,6 +113,10 @@ def telegram_webhook():
                     correct_opt = doc.get("correct_opt")
                     is_correct = (selected_opt == correct_opt)
                     
+                    # Dynamic Negative Marking calculation
+                    neg_val = doc.get("negative_marking", -0.33)
+                    score_change = 1.0 if is_correct else neg_val
+
                     scores_collection.update_one(
                         {"user_id": user_id, "quiz_id": doc.get("quiz_id")},
                         {
@@ -119,7 +124,7 @@ def telegram_webhook():
                             "$inc": {
                                 "correct": 1 if is_correct else 0,
                                 "incorrect": 0 if is_correct else 1,
-                                "score": 1.0 if is_correct else -0.33
+                                "score": score_change
                             }
                         },
                         upsert=True
@@ -229,7 +234,7 @@ def delete_quiz(quiz_id):
 
 @app.route('/play-group/<quiz_id>', methods=['POST'])
 def play_group(quiz_id):
-    global active_quiz_running, stop_requested, current_active_quiz_id
+    global active_quiz_running, stop_requested, current_active_quiz_id, current_negative_marking
     
     input_admin_id = request.form.get('admin_id', '').strip()
     if input_admin_id != OWNER_TELEGRAM_ID:
@@ -248,6 +253,13 @@ def play_group(quiz_id):
     target_group = request.form.get('group_id', '').strip()
     timer_val = request.form.get('timer', '35')
     timer = int(timer_val) if timer_val.isdigit() else 35
+
+    # Negative marking value receive karein dashboard se
+    neg_val_str = request.form.get('negative_marking', '-0.33')
+    try:
+        current_negative_marking = float(neg_val_str)
+    except:
+        current_negative_marking = -0.33
     
     if not target_group:
         return "<h3>❌ Please enter Telegram Group Username!<br>टेलीग्राम ग्रुप यूजरनेम दर्ज करें!</h3>"
@@ -263,7 +275,7 @@ def play_group(quiz_id):
     current_active_quiz_id = quiz_id
     scores_collection.delete_many({"quiz_id": quiz_id})
 
-    thread = threading.Thread(target=run_live_quiz, args=(target_group, questions, timer, quiz_id))
+    thread = threading.Thread(target=run_live_quiz, args=(target_group, questions, timer, quiz_id, current_negative_marking))
     thread.daemon = True
     thread.start()
 
@@ -326,14 +338,14 @@ def play_group(quiz_id):
     <body>
         <div class="card">
             <h2>🎉 Live Quiz Started / लाइव क्विज़ शुरू हो चुकी है!</h2>
-            <p>Total <b>{len(questions)}</b> questions are being sent to <b>'{target_group}'</b>.<br>कुल <b>{len(questions)}</b> सवाल ग्रुप में भेजे जा रहे हैं।</p>
+            <p>Total <b>{len(questions)}</b> questions are being sent to <b>'{target_group}'</b>.<br>कुल <b>{len(questions)}</b> सवाल ग्रुप में भेजे जा रहे हैं।<br><br><b>Negative Marking:</b> {current_negative_marking}</p>
             <a href="/" class="btn">Go Back / वापस जाएं</a>
         </div>
     </body>
     </html>
     """
 
-def run_live_quiz(chat_id, questions, timer, quiz_id):
+def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking):
     global active_quiz_running, stop_requested
     with quiz_lock:
         active_quiz_running = True
@@ -386,7 +398,8 @@ def run_live_quiz(chat_id, questions, timer, quiz_id):
                                 scores_collection.insert_one({
                                     "poll_id": p_id,
                                     "quiz_id": quiz_id,
-                                    "correct_opt": int(q['correct'])
+                                    "correct_opt": int(q['correct']),
+                                    "negative_marking": negative_marking
                                 })
                             break
                         else:
@@ -428,7 +441,7 @@ def send_leaderboard(chat_id):
         send_message(chat_id, "📊 No one has answered yet! / अभी तक किसी ने उत्तर नहीं दिया है!")
         return
 
-    text = "🏆 *QUIZ LEADERBOARD / क्विज़ लीडरबोर्ड (Negative Marking: -0.33)*\n-----------------------------------\n"
+    text = f"🏆 *QUIZ LEADERBOARD / क्विज़ लीडरबोर्ड*\n-----------------------------------\n"
     for rank, user in enumerate(top_users, 1):
         name = user.get("user_name", "User")
         score = user.get("score", 0.0)
