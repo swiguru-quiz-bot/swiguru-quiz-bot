@@ -58,30 +58,34 @@ def telegram_webhook():
             msg = data["message"]
             text = msg.get("text", "").strip().lower()
             chat_id = str(msg["chat"]["id"])
+            user_id = str(msg.get("from", {}).get("id", ""))
             
             if text.startswith("/start"):
                 welcome_text = (
-                    "👋 **Swagat hai ExamGuru Quiz Bot me!**\n\n"
-                    "🤖 Yeh bot aapko Telegram groups me shandar live quizzes chalane me madad karta hai.\n"
-                    "🔗 https://swiguru-quiz-bot.onrender.com"
+                    "👋 **ExamGuru Quiz Bot mein aapka swagat hai!**\n\n"
+                    "🤖 Yeh bot Telegram groups mein shandar live quizzes chalane ke liye hai."
                 )
                 send_message(chat_id, welcome_text)
 
             elif text.startswith("/mystore"):
-                store_text = "📂 **Aapka Quiz Store:**\n🔗 https://swiguru-quiz-bot.onrender.com"
+                # Yahan se storage/website link hatha diya gaya hai taaki kisi ko na dikhe
+                store_text = "📂 **Quiz Store:** Sabhi quizzes surakshit roop se admin dashboard par stored hain."
                 send_message(chat_id, store_text)
 
             elif text.startswith("/help"):
                 help_text = (
-                    "📖 **Help:**\n"
-                    "• /stop - Quiz rokne ke liye\n"
+                    "📖 **Sahayata Nirdesh:**\n"
+                    "• /stop - Quiz rokne ke liye (Kewal Admin)\n"
                     "• /score - Live leaderboard dekhne ke liye"
                 )
                 send_message(chat_id, help_text)
 
             elif text.startswith("/stop"):
-                stop_requested = True
-                send_message(chat_id, "🛑 *Quiz roak di gayi hai!*")
+                if user_id != OWNER_TELEGRAM_ID:
+                    send_message(chat_id, "⚠️ Aapke paas quiz rokne ki anumati nahi hai!")
+                else:
+                    stop_requested = True
+                    send_message(chat_id, "🛑 Quiz ko roka ja raha hai...")
             
             elif text.startswith("/score") or text.startswith("/leaderboard"):
                 send_leaderboard(chat_id)
@@ -126,11 +130,11 @@ def upload_quiz():
         quiz_title = request.form.get('quiz_title', 'Untitled Quiz').strip()
         
         if admin_id != OWNER_TELEGRAM_ID:
-            return "<h3>❌ Error: Telegram User ID galat hai!</h3>"
+            return "<h3>❌ Truti: Telegram User ID galat hai!</h3>"
 
         file = request.files.get('file')
         if not file or file.filename == '':
-            return "<h3>❌ Error: File select nahi ki gayi!</h3>"
+            return "<h3>❌ Truti: Koi file chayanit nahi hai!</h3>"
 
         file_bytes = file.read()
         file_name = file.filename.lower()
@@ -147,7 +151,7 @@ def upload_quiz():
             questions = parse_text_regex(text_content)
             
         if not questions:
-            return "<h3>❌ Error: File se sawal nahi mil paye! Format check karein.</h3>"
+            return "<h3>❌ Truti: File se sawal nahi mil paye! Format janchen.</h3>"
 
         quiz_id = str(int(time.time()))
         quiz_data = {
@@ -159,7 +163,7 @@ def upload_quiz():
         quizzes_collection.insert_one(quiz_data)
         return redirect(url_for('preview_quiz', quiz_id=quiz_id))
     except Exception as e:
-        return f"<h3>⚠️ Error: {str(e)}</h3>"
+        return f"<h3>⚠️ Truti: {str(e)}</h3>"
 
 @app.route('/preview/<quiz_id>')
 def preview_quiz(quiz_id):
@@ -221,6 +225,17 @@ def delete_quiz(quiz_id):
 @app.route('/play-group/<quiz_id>', methods=['POST'])
 def play_group(quiz_id):
     global active_quiz_running, stop_requested, current_active_quiz_id
+    
+    input_admin_id = request.form.get('admin_id', '').strip()
+    if input_admin_id != OWNER_TELEGRAM_ID:
+        return """
+        <div style="background: #ffebee; color: #c62828; padding: 25px; border-radius: 10px; font-family: sans-serif; text-align: center; margin: 40px auto; max-width: 500px; border: 2px solid #ef5350;">
+            <h3>❌ Anumati Asvikrit</h3>
+            <p>Kewal Bot Owner hi group mein quiz shuru kar sakta hai!</p>
+            <a href="/" style="display: inline-block; margin-top: 15px; padding: 10px 20px; background: #c62828; color: white; text-decoration: none; border-radius: 5px;">Wapas Jayen</a>
+        </div>
+        """
+
     doc = quizzes_collection.find_one({"_id": quiz_id})
     if not doc:
         return "<h3>❌ Quiz nahi mili!</h3>"
@@ -230,14 +245,14 @@ def play_group(quiz_id):
     timer = int(timer_val) if timer_val.isdigit() else 35
     
     if not target_group:
-        return "<h3>❌ Telegram Group Username dalein!</h3>"
+        return "<h3>❌ Telegram Group Username darj karein!</h3>"
         
     questions = doc.get('questions', [])
     if not questions:
-        return "<h3>❌ Is quiz me sawal nahi hain!</h3>"
+        return "<h3>❌ Is quiz mein koi sawal nahi hai!</h3>"
 
     if active_quiz_running:
-        return "<h3>⚠️ Ek quiz chal rahi hai! Kripya /stop karein ya intezaar karein.</h3>"
+        return "<h3>⚠️ Ek quiz pehle se chal rahi hai! Kripya /stop ka upyog karein.</h3>"
 
     stop_requested = False
     current_active_quiz_id = quiz_id
@@ -247,7 +262,71 @@ def play_group(quiz_id):
     thread.daemon = True
     thread.start()
 
-    return f"<h2>🎉 Live Quiz Shuru! Total {len(questions)} sawal bheje ja rahe hain.</h2>"
+    return f"""
+    <!DOCTYPE html>
+    <html lang="hi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Quiz Status - ExamGuru</title>
+        <style>
+            body {{
+                background-color: #121212;
+                color: #ffffff;
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: 100vh;
+                margin: 0;
+            }}
+            .card {{
+                background: #1e1e1e;
+                padding: 30px;
+                border-radius: 12px;
+                box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+                text-align: center;
+                max-width: 450px;
+                width: 90%;
+                border: 1px solid #333;
+            }}
+            h2 {{
+                color: #4caf50;
+                font-size: 22px;
+                margin-bottom: 15px;
+            }}
+            p {{
+                color: #e0e0e0;
+                font-size: 16px;
+                line-height: 1.5;
+                margin-bottom: 25px;
+            }}
+            .btn {{
+                background-color: #4caf50;
+                color: white;
+                padding: 12px 25px;
+                border: none;
+                border-radius: 6px;
+                font-size: 16px;
+                cursor: pointer;
+                text-decoration: none;
+                font-weight: bold;
+                display: inline-block;
+            }}
+            .btn:hover {{
+                background-color: #43a047;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="card">
+            <h2>🎉 Live Quiz Shuru Ho Chuki Hai!</h2>
+            <p>Kul <b>{len(questions)}</b> sawal aapke telegram group <b>'{target_group}'</b> mein bheje ja rahe hain.</p>
+            <a href="/" class="btn">Wapas Home Page Par Jayen</a>
+        </div>
+    </body>
+    </html>
+    """
 
 def run_live_quiz(chat_id, questions, timer, quiz_id):
     global active_quiz_running, stop_requested
@@ -257,23 +336,29 @@ def run_live_quiz(chat_id, questions, timer, quiz_id):
             total_q = len(questions)
             for index, q in enumerate(questions):
                 if stop_requested:
-                    send_message(chat_id, "🛑 *Quiz roak di gayi hai!*")
+                    send_message(chat_id, "🛑 *Quiz ko beech mein hi rok diya gaya hai!*")
                     break
 
-                url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPoll"
-                opts = q.get('options', [])
-                if len(opts) < 2:
+                raw_opts = q.get('options', [])
+                if len(raw_opts) < 2:
                     continue
-                
+
                 q_text = q['question']
-                prefix = f"Q{index+1}/{total_q}: "
-                max_len = 300 - len(prefix)
-                formatted_q = prefix + (q_text[:max_len] if len(q_text) > max_len else q_text)
-                    
+                msg_content = f"<b>[Q.{index+1}/{total_q} / प्रश्न {index+1}/{total_q}]</b>\n\n<b>Question / सवाल:</b> {q_text}\n\n<b>Options / विकल्प:</b>\n"
+                for i, opt in enumerate(raw_opts):
+                    opt_label = chr(65 + i)
+                    msg_content += f"<b>{opt_label})</b> {opt}\n"
+                
+                send_html_message(chat_id, msg_content)
+                time.sleep(1)
+
+                url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPoll"
+                poll_opts = ["A", "B", "C", "D"][:len(raw_opts)]
+                
                 poll_payload = {
                     "chat_id": chat_id,
-                    "question": formatted_q,
-                    "options": json.dumps(opts),
+                    "question": f"Q.{index+1}/{total_q}: Select correct option / सही विकल्प चुनें 👇",
+                    "options": json.dumps(poll_opts),
                     "type": "quiz",
                     "correct_option_id": int(q['correct']),
                     "is_anonymous": False
@@ -304,9 +389,6 @@ def run_live_quiz(chat_id, questions, timer, quiz_id):
                     except Exception:
                         time.sleep(2)
 
-                if not sent_success:
-                    print(f"Failed to send Question {index+1} after 3 attempts.")
-
                 wait_time = (timer if timer > 0 else 35) + 3
                 for _ in range(wait_time):
                     if stop_requested:
@@ -314,11 +396,11 @@ def run_live_quiz(chat_id, questions, timer, quiz_id):
                     time.sleep(1)
 
                 if stop_requested:
-                    send_message(chat_id, "🛑 *Quiz roak di gayi hai!*")
+                    send_message(chat_id, "🛑 *Quiz ko beech mein hi rok diya gaya hai!*")
                     break
 
                 if (index + 1) % 10 == 0 and (index + 1) < total_q:
-                    score_msg = f"📊 *Scoreboard / Progress Update*\n-----------------------------------\n👉 Abhi tak *{index + 1}* sawal poore ho chuke hain (Kul {total_q} me se).\n💡 Score ke liye */score* bhejein."
+                    score_msg = f"📊 *Progress Report / प्रगति रिपोर्ट*\n-----------------------------------\n👉 Abhi tak *{index + 1}* sawal poore ho chuke hain.\n💡 Score ke liye group mein */score* bhejein."
                     send_message(chat_id, score_msg)
                     time.sleep(3)
 
@@ -348,7 +430,7 @@ def send_leaderboard(chat_id):
         correct = user.get("correct", 0)
         incorrect = user.get("incorrect", 0)
         medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"{rank}."
-        text += f"{medal} *{name}* — Score: *{score:.2f}* (✅ {correct} | ❌ {incorrect})\n"
+        text += f"{medal} *{name}* — Score / स्कोर: *{score:.2f}* (✅ {correct} | ❌ {incorrect})\n"
 
     send_message(chat_id, text)
 
@@ -359,6 +441,14 @@ def send_message(chat_id, text):
         requests.post(url, data=payload, timeout=10)
     except Exception as e:
         print(f"Send message error: {e}")
+
+def send_html_message(chat_id, text):
+    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+    try:
+        requests.post(url, data=payload, timeout=10)
+    except Exception as e:
+        print(f"Send HTML message error: {e}")
 
 def parse_text_regex(text):
     parsed = []
@@ -371,8 +461,8 @@ def parse_text_regex(text):
         if len(lines) < 5:
             continue
         
-        q_lines = lines[:-4]
-        q_text = " ".join(q_lines).strip()
+        _lines = lines[:-4]
+        q_text = " ".join(_lines).strip()
         
         options = lines[-4:]
         correct_idx = 0
