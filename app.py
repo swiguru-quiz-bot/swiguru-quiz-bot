@@ -62,30 +62,35 @@ def telegram_webhook():
             
             if text.startswith("/start"):
                 welcome_text = (
-                    "👋 **ExamGuru Quiz Bot mein aapka swagat hai!**\n\n"
-                    "🤖 Yeh bot Telegram groups mein shandar live quizzes chalane ke liye hai."
+                    "Welcome to exam Guru\n"
+                    "This group will prepare your Railway departmental exam of personal department Like APO, Staff and welfare inspector, office Superintendent, senior Clerk, Jr Clerk providing You Syllabus topic Of your Exam in MCQ form, or previous year question papers in MCQ to test your preparation\n\n"
+                    "-----------------------------------\n\n"
+                    "Exam Guru में आपका स्वागत है। यह Gruop रेलवे के पर्सनल डिपार्टमेंट (जैसे APO, स्टाफ़ और वेलफ़ेयर इंस्पेक्टर, ऑफ़िस सुपरिटेंडेंट, सीनियर क्लर्क, जूनियर क्लर्क) के डिपार्टमेंटल एग्ज़ाम की तैयारी में आपकी मदद करेगा। यह आपको एग्ज़ाम के सिलेबस के टॉपिक MCQ फ़ॉर्मेट में देगा और आपकी तैयारी को परखने के लिए पिछले सालों के प्रश्न-पत्र भी MCQ फ़ॉर्मेट में उपलब्ध कराएगा।"
                 )
                 send_message(chat_id, welcome_text)
 
             elif text.startswith("/mystore"):
-                # Yahan se storage/website link hatha diya gaya hai taaki kisi ko na dikhe
-                store_text = "📂 **Quiz Store:** Sabhi quizzes surakshit roop se admin dashboard par stored hain."
+                store_text = (
+                    "📂 **Quiz Store / क्विज़ स्टोर:**\n"
+                    "All quizzes are securely stored on the admin dashboard.\n"
+                    "सभी क्विज़ एडमिन डैशबोर्ड पर सुरक्षित रूप से संग्रहीत हैं।"
+                )
                 send_message(chat_id, store_text)
 
             elif text.startswith("/help"):
                 help_text = (
-                    "📖 **Sahayata Nirdesh:**\n"
-                    "• /stop - Quiz rokne ke liye (Kewal Admin)\n"
-                    "• /score - Live leaderboard dekhne ke liye"
+                    "📖 **Help & Instructions / सहायता निर्देश:**\n\n"
+                    "• /stop - Stop current quiz (Admin Only) / क्विज़ रोकने के लिए (केवल एडमिन)\n"
+                    "• /score - View live leaderboard / लाइव लीडरबोर्ड देखने के लिए"
                 )
                 send_message(chat_id, help_text)
 
             elif text.startswith("/stop"):
                 if user_id != OWNER_TELEGRAM_ID:
-                    send_message(chat_id, "⚠️ Aapke paas quiz rokne ki anumati nahi hai!")
+                    send_message(chat_id, "⚠️ You are not authorized to stop the quiz!\n⚠️ आपके पास क्विज़ रोकने की अनुमति नहीं है!")
                 else:
                     stop_requested = True
-                    send_message(chat_id, "🛑 Quiz ko roka ja raha hai...")
+                    send_message(chat_id, "🛑 Stopping the quiz...\n🛑 क्विज़ को रोका जा रहा है...")
             
             elif text.startswith("/score") or text.startswith("/leaderboard"):
                 send_leaderboard(chat_id)
@@ -130,11 +135,11 @@ def upload_quiz():
         quiz_title = request.form.get('quiz_title', 'Untitled Quiz').strip()
         
         if admin_id != OWNER_TELEGRAM_ID:
-            return "<h3>❌ Truti: Telegram User ID galat hai!</h3>"
+            return "<h3>❌ Error: Invalid Telegram User ID! / त्रुटि: टेलीग्राम यूजर आईडी गलत है!</h3>"
 
         file = request.files.get('file')
         if not file or file.filename == '':
-            return "<h3>❌ Truti: Koi file chayanit nahi hai!</h3>"
+            return "<h3>❌ Error: No file selected! / कोई फ़ाइल चयनित नहीं है!</h3>"
 
         file_bytes = file.read()
         file_name = file.filename.lower()
@@ -151,7 +156,7 @@ def upload_quiz():
             questions = parse_text_regex(text_content)
             
         if not questions:
-            return "<h3>❌ Truti: File se sawal nahi mil paye! Format janchen.</h3>"
+            return "<h3>❌ Error: No questions found! / फ़ाइल से सवाल नहीं मिल पाए!</h3>"
 
         quiz_id = str(int(time.time()))
         quiz_data = {
@@ -163,13 +168,13 @@ def upload_quiz():
         quizzes_collection.insert_one(quiz_data)
         return redirect(url_for('preview_quiz', quiz_id=quiz_id))
     except Exception as e:
-        return f"<h3>⚠️ Truti: {str(e)}</h3>"
+        return f"<h3>⚠️ Error: {str(e)}</h3>"
 
 @app.route('/preview/<quiz_id>')
 def preview_quiz(quiz_id):
     doc = quizzes_collection.find_one({"_id": quiz_id})
     if not doc:
-        return "<h3>❌ Quiz nahi mili!</h3>"
+        return "<h3>❌ Quiz not found! / क्विज़ नहीं मिली!</h3>"
     quiz = {
         "title": doc.get("title"),
         "questions": doc.get("questions"),
@@ -230,29 +235,29 @@ def play_group(quiz_id):
     if input_admin_id != OWNER_TELEGRAM_ID:
         return """
         <div style="background: #ffebee; color: #c62828; padding: 25px; border-radius: 10px; font-family: sans-serif; text-align: center; margin: 40px auto; max-width: 500px; border: 2px solid #ef5350;">
-            <h3>❌ Anumati Asvikrit</h3>
-            <p>Kewal Bot Owner hi group mein quiz shuru kar sakta hai!</p>
-            <a href="/" style="display: inline-block; margin-top: 15px; padding: 10px 20px; background: #c62828; color: white; text-decoration: none; border-radius: 5px;">Wapas Jayen</a>
+            <h3>❌ Access Denied / अनुमति अस्वीकृत</h3>
+            <p>Only Bot Owner can start the quiz!<br>केवल बॉट ओनर ही ग्रुप में क्विज़ शुरू कर सकता है!</p>
+            <a href="/" style="display: inline-block; margin-top: 15px; padding: 10px 20px; background: #c62828; color: white; text-decoration: none; border-radius: 5px;">Go Back / वापस जाएं</a>
         </div>
         """
 
     doc = quizzes_collection.find_one({"_id": quiz_id})
     if not doc:
-        return "<h3>❌ Quiz nahi mili!</h3>"
+        return "<h3>❌ Quiz not found! / क्विज़ नहीं मिली!</h3>"
         
     target_group = request.form.get('group_id', '').strip()
     timer_val = request.form.get('timer', '35')
     timer = int(timer_val) if timer_val.isdigit() else 35
     
     if not target_group:
-        return "<h3>❌ Telegram Group Username darj karein!</h3>"
+        return "<h3>❌ Please enter Telegram Group Username!<br>टेलीग्राम ग्रुप यूजरनेम दर्ज करें!</h3>"
         
     questions = doc.get('questions', [])
     if not questions:
-        return "<h3>❌ Is quiz mein koi sawal nahi hai!</h3>"
+        return "<h3>❌ No questions in this quiz!<br>इस क्विज़ में कोई सवाल नहीं है!</h3>"
 
     if active_quiz_running:
-        return "<h3>⚠️ Ek quiz pehle se chal rahi hai! Kripya /stop ka upyog karein.</h3>"
+        return "<h3>⚠️ A quiz is already running! Please use /stop.<br>एक क्विज़ पहले से चल रही है!</h3>"
 
     stop_requested = False
     current_active_quiz_id = quiz_id
@@ -320,9 +325,9 @@ def play_group(quiz_id):
     </head>
     <body>
         <div class="card">
-            <h2>🎉 Live Quiz Shuru Ho Chuki Hai!</h2>
-            <p>Kul <b>{len(questions)}</b> sawal aapke telegram group <b>'{target_group}'</b> mein bheje ja rahe hain.</p>
-            <a href="/" class="btn">Wapas Home Page Par Jayen</a>
+            <h2>🎉 Live Quiz Started / लाइव क्विज़ शुरू हो चुकी है!</h2>
+            <p>Total <b>{len(questions)}</b> questions are being sent to <b>'{target_group}'</b>.<br>कुल <b>{len(questions)}</b> सवाल ग्रुप में भेजे जा रहे हैं।</p>
+            <a href="/" class="btn">Go Back / वापस जाएं</a>
         </div>
     </body>
     </html>
@@ -336,7 +341,7 @@ def run_live_quiz(chat_id, questions, timer, quiz_id):
             total_q = len(questions)
             for index, q in enumerate(questions):
                 if stop_requested:
-                    send_message(chat_id, "🛑 *Quiz ko beech mein hi rok diya gaya hai!*")
+                    send_message(chat_id, "🛑 *Quiz has been stopped! / क्विज़ को रोक दिया गया है!*")
                     break
 
                 raw_opts = q.get('options', [])
@@ -396,16 +401,16 @@ def run_live_quiz(chat_id, questions, timer, quiz_id):
                     time.sleep(1)
 
                 if stop_requested:
-                    send_message(chat_id, "🛑 *Quiz ko beech mein hi rok diya gaya hai!*")
+                    send_message(chat_id, "🛑 *Quiz has been stopped! / क्विज़ को रोक दिया गया है!*")
                     break
 
                 if (index + 1) % 10 == 0 and (index + 1) < total_q:
-                    score_msg = f"📊 *Progress Report / प्रगति रिपोर्ट*\n-----------------------------------\n👉 Abhi tak *{index + 1}* sawal poore ho chuke hain.\n💡 Score ke liye group mein */score* bhejein."
+                    score_msg = f"📊 *Progress Report / प्रगति रिपोर्ट*\n-----------------------------------\n👉 Completed *{index + 1}* of {total_q} questions.\n👉 अभी तक *{index + 1}* सवाल पूरे हो चुके हैं।\n💡 Type */score* to check standings / स्कोर के लिए */score* भेजें।"
                     send_message(chat_id, score_msg)
                     time.sleep(3)
 
             if not stop_requested:
-                send_message(chat_id, f"🏆 *Quiz Samapt Hui!* Sabhi {total_q} sawal poore ho chuke hain.")
+                send_message(chat_id, f"🏆 *Quiz Completed! / क्विज़ समाप्त हुई!* All {total_q} questions posted. / सभी {total_q} सवाल पूरे हो चुके हैं।")
                 time.sleep(2)
                 send_leaderboard(chat_id)
         finally:
@@ -415,15 +420,15 @@ def run_live_quiz(chat_id, questions, timer, quiz_id):
 def send_leaderboard(chat_id):
     global current_active_quiz_id
     if not current_active_quiz_id:
-        send_message(chat_id, "⚠️ Abhi koi active quiz record nahi hai!")
+        send_message(chat_id, "⚠️ No active quiz record found! / कोई सक्रिय क्विज़ रिकॉर्ड नहीं है!")
         return
 
     top_users = list(scores_collection.find({"quiz_id": current_active_quiz_id, "score": {"$exists": True}}).sort("score", -1).limit(10))
     if not top_users:
-        send_message(chat_id, "📊 Abhi tak kisi bhi sadasya ne uttar nahi diya hai!")
+        send_message(chat_id, "📊 No one has answered yet! / अभी तक किसी ने उत्तर नहीं दिया है!")
         return
 
-    text = "🏆 *QUIZ LEADERBOARD (Negative Marking: -0.33)*\n-----------------------------------\n"
+    text = "🏆 *QUIZ LEADERBOARD / क्विज़ लीडरबोर्ड (Negative Marking: -0.33)*\n-----------------------------------\n"
     for rank, user in enumerate(top_users, 1):
         name = user.get("user_name", "User")
         score = user.get("score", 0.0)
