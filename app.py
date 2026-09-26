@@ -25,7 +25,7 @@ quiz_lock = threading.Lock()
 active_quiz_running = False
 stop_requested = False
 current_active_quiz_id = None
-current_negative_marking = -0.33 # Default negative marking
+current_negative_marking = -0.33
 
 def load_quizzes():
     try:
@@ -47,6 +47,7 @@ def home():
     quizzes = load_quizzes()
     return render_template('index.html', quizzes=quizzes, owner_id=OWNER_TELEGRAM_ID)
 
+# --- Telegram Webhook ---
 @app.route('/webhook', methods=['POST'])
 def telegram_webhook():
     global stop_requested, current_negative_marking
@@ -113,7 +114,6 @@ def telegram_webhook():
                     correct_opt = doc.get("correct_opt")
                     is_correct = (selected_opt == correct_opt)
                     
-                    # Dynamic Negative Marking calculation
                     neg_val = doc.get("negative_marking", -0.33)
                     score_change = 1.0 if is_correct else neg_val
 
@@ -132,6 +132,27 @@ def telegram_webhook():
     except Exception as e:
         print(f"Webhook Exception: {e}")
     return "OK", 200
+
+# --- WhatsApp Webhook Integration ---
+@app.route('/whatsapp-webhook', methods=['GET', 'POST'])
+def whatsapp_webhook():
+    if request.method == 'GET':
+        verify_token = "swiguru_verify_token_123"
+        mode = request.args.get("hub.mode")
+        token = request.args.get("hub.verify_token")
+        challenge = request.args.get("hub.challenge")
+        
+        if mode and token and mode == "subscribe" and token == verify_token:
+            return challenge, 200
+        return "Verification Failed", 403
+
+    elif request.method == 'POST':
+        data = request.get_json(force=True, silent=True)
+        try:
+            pass
+        except Exception as e:
+            print(f"WhatsApp Webhook Error: {e}")
+        return "OK", 200
 
 @app.route('/upload-quiz', methods=['POST'])
 def upload_quiz():
@@ -186,6 +207,63 @@ def preview_quiz(quiz_id):
         "created_at": doc.get("created_at")
     }
     return render_template('preview.html', quiz_id=quiz_id, quiz=quiz, owner_id=OWNER_TELEGRAM_ID)
+
+@app.route('/quiz-scores/<quiz_id>')
+def view_quiz_scores(quiz_id):
+    doc = quizzes_collection.find_one({"_id": quiz_id})
+    if not doc:
+        return "<h3>❌ Quiz nahi mili!</h3>"
+    
+    scores = list(scores_collection.find({"quiz_id": quiz_id}).sort("score", -1))
+    
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="hi">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Leaderboard - {doc.get('title')}</title>
+        <style>
+            body {{ background-color: #121212; color: #fff; font-family: sans-serif; padding: 20px; }}
+            .container {{ max-width: 650px; margin: 0 auto; background: #1e1e1e; padding: 25px; border-radius: 10px; border: 1px solid #333; }}
+            h2 {{ color: #4caf50; text-align: center; }}
+            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+            th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #333; }}
+            th {{ background: #252525; color: #4caf50; }}
+            tr:hover {{ background: #2a2a2a; }}
+            .btn {{ display: inline-block; margin-top: 20px; padding: 10px 20px; background: #2196f3; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h2>🏆 Leaderboard: {doc.get('title')}</h2>
+            <p>Total Candidates: <b>{len(scores)}</b></p>
+            <table>
+                <tr>
+                    <th>Rank</th>
+                    <th>Candidate Name</th>
+                    <th>Score</th>
+                    <th>Correct (✅)</th>
+                    <th>Incorrect (❌)</th>
+                </tr>
+    """
+    
+    for rank, user in enumerate(scores, 1):
+        name = user.get("user_name", "User")
+        score = user.get("score", 0.0)
+        correct = user.get("correct", 0)
+        incorrect = user.get("incorrect", 0)
+        medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"{rank}"
+        html += f"<tr><td>{medal}</td><td>{name}</td><td><b>{score:.2f}</b></td><td>{correct}</td><td>{incorrect}</td></tr>"
+        
+    html += f"""
+            </table>
+            <a href="/" class="btn">← Back to Home / होम पेज पर जाएं</a>
+        </div>
+    </body>
+    </html>
+    """
+    return html
 
 @app.route('/update-question/<quiz_id>/<int:q_index>', methods=['POST'])
 def update_question(quiz_id, q_index):
@@ -254,7 +332,6 @@ def play_group(quiz_id):
     timer_val = request.form.get('timer', '35')
     timer = int(timer_val) if timer_val.isdigit() else 35
 
-    # Negative marking value receive karein dashboard se
     neg_val_str = request.form.get('negative_marking', '-0.33')
     try:
         current_negative_marking = float(neg_val_str)
@@ -338,7 +415,7 @@ def play_group(quiz_id):
     <body>
         <div class="card">
             <h2>🎉 Live Quiz Started / लाइव क्विज़ शुरू हो चुकी है!</h2>
-            <p>Total <b>{len(questions)}</b> questions are being sent to <b>'{target_group}'</b>.<br>कुल <b>{len(questions)}</b> सवाल ग्रुप में भेजे जा रहे हैं।<br><br><b>Negative Marking:</b> {current_negative_marking}</p>
+            <p>Total <b>{len(questions)}</b> questions are being sent to <b>'{target_group}'</b>.<br>कुल <b>{len(questions)}</b> सवाल ग्रुप में भेजे जा रहे हैं。<br><br><b>Negative Marking:</b> {current_negative_marking}</p>
             <a href="/" class="btn">Go Back / वापस जाएं</a>
         </div>
     </body>
@@ -431,17 +508,25 @@ def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking):
             stop_requested = False
 
 def send_leaderboard(chat_id):
-    global current_active_quiz_id
-    if not current_active_quiz_id:
+    # Database se sabse aakhri quiz ka record dhoondhein jiska score save hua hai
+    latest_score_doc = scores_collection.find_one({"score": {"$exists": True}}, sort=[("_id", -1)])
+    
+    if not latest_score_doc:
         send_message(chat_id, "⚠️ No active quiz record found! / कोई सक्रिय क्विज़ रिकॉर्ड नहीं है!")
         return
 
-    top_users = list(scores_collection.find({"quiz_id": current_active_quiz_id, "score": {"$exists": True}}).sort("score", -1).limit(100))
+    q_id = latest_score_doc.get("quiz_id")
+    quiz_doc = quizzes_collection.find_one({"_id": q_id})
+    quiz_title = quiz_doc.get("title", "Quiz") if quiz_doc else "Quiz"
+
+    # Limit badhaakar 100 kar di gayi hai taaki 100 candidates tak ka score dikhe
+    top_users = list(scores_collection.find({"quiz_id": q_id, "score": {"$exists": True}}).sort("score", -1).limit(100))
+    
     if not top_users:
         send_message(chat_id, "📊 No one has answered yet! / अभी तक किसी ने उत्तर नहीं दिया है!")
         return
 
-    text = f"🏆 *QUIZ LEADERBOARD / क्विज़ लीडरबोर्ड*\n-----------------------------------\n"
+    text = f"🏆 *LEADERBOARD: {quiz_title}*\n-----------------------------------\n"
     for rank, user in enumerate(top_users, 1):
         name = user.get("user_name", "User")
         score = user.get("score", 0.0)
