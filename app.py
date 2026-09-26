@@ -282,7 +282,6 @@ def run_live_quiz(chat_id, questions, timer, quiz_id):
                 if timer > 0:
                     poll_payload["open_period"] = timer
 
-                # Har sawal ko bhejne ke liye 3 baar retry mechanism taaki network issue se skip na ho
                 sent_success = False
                 for attempt in range(3):
                     if stop_requested:
@@ -308,7 +307,6 @@ def run_live_quiz(chat_id, questions, timer, quiz_id):
                 if not sent_success:
                     print(f"Failed to send Question {index+1} after 3 attempts.")
 
-                # Timer ke hisab se exact wait taaki koi sawal skip na ho
                 wait_time = (timer if timer > 0 else 35) + 3
                 for _ in range(wait_time):
                     if stop_requested:
