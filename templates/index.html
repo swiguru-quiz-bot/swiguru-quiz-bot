@@ -3,174 +3,266 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ExamGuru - Control Panel</title>
+    <title>ExamGuru - My Quizzes</title>
     <style>
         body {
             background-color: #121212;
             color: #e0e0e0;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             margin: 0;
-            padding: 20px;
+            padding: 15px;
         }
         .container {
-            max-width: 600px;
+            max-width: 500px;
             margin: 0 auto;
-            background: #1e1e1e;
-            padding: 25px;
+        }
+        .header-stats {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            padding: 15px;
             border-radius: 12px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
-            border: 1px solid #333;
-        }
-        h2, h3 {
-            color: #4caf50;
+            display: flex;
+            justify-content: space-around;
             text-align: center;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
         }
-        .form-group {
+        .stat-box h3 { margin: 0; font-size: 20px; color: #fff; }
+        .stat-box p { margin: 5px 0 0 0; font-size: 12px; color: #cfd8dc; }
+
+        .section-title { font-size: 13px; color: #9e9e9e; text-transform: uppercase; margin-bottom: 10px; font-weight: bold; }
+        
+        .folders-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
             margin-bottom: 20px;
         }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-weight: bold;
-            color: #ccc;
-        }
-        input[type="text"], input[type="file"], select {
-            width: 100%;
+        .folder-card {
+            background: #1e1e1e;
             padding: 12px;
-            background: #2a2a2a;
-            border: 1px solid #444;
-            color: #fff;
-            border-radius: 6px;
-            box-sizing: border-box;
-            font-size: 14px;
-        }
-        button {
-            background-color: #4caf50;
-            color: white;
-            padding: 14px;
-            border: none;
-            border-radius: 6px;
-            font-size: 16px;
-            cursor: pointer;
-            width: 100%;
-            font-weight: bold;
-        }
-        button:hover {
-            background-color: #43a047;
-        }
-        .quiz-card {
-            background: #252525;
-            padding: 15px;
             border-radius: 8px;
-            margin-bottom: 15px;
-            border: 1px solid #383838;
-        }
-        .quiz-title {
-            font-size: 16px;
-            font-weight: bold;
-            color: #fff;
-            margin-bottom: 5px;
-        }
-        .quiz-category {
-            font-size: 13px;
-            color: #ff9800;
-            margin-bottom: 10px;
-        }
-        .btn-row {
+            border: 1px solid #2c2c2c;
             display: flex;
-            gap: 10px;
-        }
-        .btn-review {
-            background-color: #2196f3;
-            color: white;
-            padding: 8px 15px;
-            border-radius: 4px;
-            text-decoration: none;
-            font-size: 14px;
-            text-align: center;
-            flex: 1;
-        }
-        .btn-scores {
-            background-color: #ff9800;
-            color: white;
-            padding: 8px 15px;
-            border-radius: 4px;
-            text-decoration: none;
-            font-size: 14px;
-            text-align: center;
-            flex: 1;
-            font-weight: bold;
-        }
-        .btn-delete {
-            background-color: #f44336;
-            color: white;
-            padding: 8px 15px;
-            border-radius: 4px;
-            border: none;
+            justify-content: space-between;
+            align-items: center;
             cursor: pointer;
-            font-size: 14px;
-            flex: 1;
         }
-        .btn-review:hover { background-color: #1976d2; }
-        .btn-scores:hover { background-color: #f57c00; }
-        .btn-delete:hover { background-color: #d32f2f; }
+        .folder-card:hover { background: #252525; }
+
+        .quiz-item {
+            background: #1e1e1e;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #2c2c2c;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .quiz-info { flex: 1; overflow: hidden; }
+        .quiz-title { font-size: 15px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .quiz-meta { font-size: 12px; color: #888; margin-top: 3px; }
+
+        /* Three Dots Menu Button */
+        .menu-btn {
+            background: transparent;
+            border: none;
+            color: #aaa;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 5px 10px;
+        }
+        .menu-btn:hover { color: #fff; }
+
+        /* Modal Popup Design (Jaise Screenshot me hai) */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            justify-content: center;
+            align-items: flex-end;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: #1e1e1e;
+            width: 100%;
+            max-width: 500px;
+            border-top-left-radius: 16px;
+            border-top-right-radius: 16px;
+            padding: 20px;
+            box-sizing: border-box;
+            border-top: 1px solid #333;
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #2c2c2c;
+            padding-bottom: 10px;
+        }
+        .modal-header h3 { margin: 0; color: #fff; font-size: 18px; }
+        .close-modal { background: #2c2c2c; border: none; color: #fff; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 16px; }
+
+        .modal-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .modal-btn {
+            background: #252525;
+            color: #fff;
+            border: 1px solid #333;
+            padding: 14px;
+            border-radius: 8px;
+            text-align: center;
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 600;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        .modal-btn:hover { background: #2f2f2f; }
+        .modal-btn.full { grid-column: span 2; flex-direction: row; justify-content: center; background: #2196f3; border: none; }
+        .modal-btn.delete { background: #c62828; border: none; }
+
+        /* Upload Button Styling */
+        .upload-section { background: #1e1e1e; padding: 15px; border-radius: 8px; margin-top: 20px; border: 1px solid #2c2c2c; }
+        input, select { width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 6px; box-sizing: border-box; margin-bottom: 10px; }
+        .btn-submit { background: #4caf50; color: white; padding: 12px; border: none; border-radius: 6px; font-weight: bold; width: 100%; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h2>ExamGuru Control Panel</h2>
-        
-        <!-- Quiz Upload Form -->
-        <form action="/upload-quiz" method="POST" enctype="multipart/form-data">
-            <div class="form-group">
-                <label>Telegram User ID:</label>
-                <input type="text" name="admin_id" value="{{ owner_id }}" required>
+        <!-- Header Stats -->
+        <div class="header-stats">
+            <div class="stat-box">
+                <h3>{{ quizzes|length }}</h3>
+                <p>Quizzes</p>
             </div>
-            
-            <div class="form-group">
-                <label>Quiz Title / Name:</label>
-                <input type="text" name="quiz_title" placeholder="Jaise: Railway Leave Rules" required>
+            <div class="stat-box">
+                <h3>📁 2</h3>
+                <p>Folders</p>
             </div>
+        </div>
 
-            <div class="form-group">
-                <label>Select Folder / Category (किस फोल्डर में सेव करें):</label>
-                <select name="category" required>
-                    <option value="Chapter-wise">Chapter-wise Quiz</option>
-                    <option value="PYQ (Previous Year)">PYQ (Previous Year Questions)</option>
-                </select>
+        <div class="section-title">YOUR LIBRARY / FOLDERS</div>
+        <div class="folders-grid">
+            <div class="folder-card">
+                <span>📁 Chapter-wise</span>
+                <span>⋮</span>
             </div>
-            
-            <div class="form-group">
-                <label>Upload Quiz File (.json, .txt, .pdf):</label>
-                <input type="file" name="file" required>
+            <div class="folder-card">
+                <span>📁 PYQ (Previous Year)</span>
+                <span>⋮</span>
             </div>
-            
-            <button type="submit">Upload & Review Quiz / अपलोड और रिव्यु करें</button>
-        </form>
+        </div>
 
-        <hr style="border: 0; border-top: 1px solid #444; margin: 30px 0;">
+        <div class="section-title">ALL QUIZZES</div>
 
-        <h3>📚 Saved Quizzes Library / सहेजी गई क्विज़ सूची</h3>
-        
+        <!-- Quizzes List -->
         {% if quizzes %}
             {% for q_id, q_data in quizzes.items() %}
-                <div class="quiz-card">
-                    <div class="quiz-title">{{ q_data.title }} ({{ q_data.questions|length }} Sawaal)</div>
-                    <div class="quiz-category">📂 Folder: {{ q_data.category }}</div>
-                    <div class="btn-row">
-                        <a href="/preview/{{ q_id }}" class="btn-review">Review / Edit</a>
-                        <a href="/quiz-scores/{{ q_id }}" class="btn-scores">Scores 🏆</a>
-                        <form action="/delete-quiz/{{ q_id }}" method="POST" style="flex: 1; margin: 0;">
-                            <button type="submit" class="btn-delete" onclick="return confirm('Kya aap is quiz ko delete karna chahte hain?');">Delete</button>
-                        </form>
+                <div class="quiz-item">
+                    <div class="quiz-info" onclick="openModal('{{ q_id }}', '{{ q_data.title }}')">
+                        <div class="quiz-title">📄 {{ q_data.title }}</div>
+                        <div class="quiz-meta">📝 📋 {{ q_data.questions|length }} Sawaal &nbsp;|&nbsp; 📁 {{ q_data.category }}</div>
                     </div>
+                    <button class="menu-btn" onclick="openModal('{{ q_id }}', '{{ q_data.title }}')">⋮</button>
                 </div>
             {% endfor %}
         {% else %}
-            <p style="text-align: center; color: #888;">Abhi tak koi quiz save nahi hai. / No quizzes saved yet.</p>
+            <p style="text-align: center; color: #777;">No quizzes found. Upload below!</p>
         {% endif %}
+
+        <!-- Upload New Quiz Section -->
+        <div class="upload-section">
+            <div class="section-title" style="margin-bottom: 10px;">➕ Upload New Quiz</div>
+            <form action="/upload-quiz" method="POST" enctype="multipart/form-data">
+                <input type="hidden" name="admin_id" value="{{ owner_id }}">
+                <input type="text" name="quiz_title" placeholder="Quiz Title (जैसे: Leave Rules)" required>
+                <select name="category">
+                    <option value="Chapter-wise">📁 Chapter-wise</option>
+                    <option value="PYQ (Previous Year)">📁 PYQ (Previous Year)</option>
+                </select>
+                <input type="file" name="file" required>
+                <button type="submit" class="btn-submit">Upload & Save Quiz</button>
+            </form>
+        </div>
     </div>
 
+    <!-- Modal Popup Menu (Jaise Screenshot me hai) -->
+    <div id="quizModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Quiz Options</h3>
+                <button class="close-modal" onclick="closeModal()">×</button>
+            </div>
+            
+            <div class="modal-grid">
+                <a id="btnPreview" href="#" class="modal-btn">
+                    <span>🚀</span> Play Group / Review
+                </a>
+                <a id="btnScores" href="#" class="modal-btn">
+                    <span>🏆</span> View Scores
+                </a>
+                <a id="btnEdit" href="#" class="modal-btn full">
+                    <span>✏️</span> Edit Content & Questions
+                </a>
+            </div>
+
+            <!-- Move to Folder Form -->
+            <form id="moveForm" action="" method="POST" style="margin-bottom: 10px; background: #252525; padding: 10px; border-radius: 8px;">
+                <label style="font-size: 12px; color: #aaa; display: block; margin-bottom: 5px;">Move to Folder:</label>
+                <div style="display: flex; gap: 5px;">
+                    <select name="category" style="margin: 0; padding: 8px;">
+                        <option value="Chapter-wise">Chapter-wise</option>
+                        <option value="PYQ (Previous Year)">PYQ (Previous Year)</option>
+                    </select>
+                    <button type="submit" style="background: #2196f3; color: white; border: none; padding: 8px 15px; border-radius: 6px; font-weight: bold; cursor: pointer;">Move</button>
+                </div>
+            </form>
+
+            <!-- Delete Form -->
+            <form id="deleteForm" action="" method="POST" onsubmit="return confirm('Kya aap is quiz ko delete karna chahte hain?');">
+                <button type="submit" class="modal-btn full delete" style="width: 100%;">
+                    <span>🗑️</span> Delete Quiz
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openModal(quizId, quizTitle) {
+            document.getElementById('modalTitle').innerText = quizTitle;
+            document.getElementById('btnPreview').href = '/preview/' + quizId;
+            document.getElementById('btnScores').href = '/quiz-scores/' + quizId;
+            document.getElementById('btnEdit').href = '/preview/' + quizId;
+            document.getElementById('moveForm').action = '/move-quiz/' + quizId;
+            document.getElementById('deleteForm').action = '/delete-quiz/' + quizId;
+            document.getElementById('quizModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('quizModal').style.display = 'none';
+        }
+
+        window.onclick = function(event) {
+            let modal = document.getElementById('quizModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+    </script>
 </body>
 </html>

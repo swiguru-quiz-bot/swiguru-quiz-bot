@@ -270,6 +270,15 @@ def view_quiz_scores(quiz_id):
     """
     return html
 
+@app.route('/move-quiz/<quiz_id>', methods=['POST'])
+def move_quiz(quiz_id):
+    new_category = request.form.get('category', 'Chapter-wise').strip()
+    quizzes_collection.update_one(
+        {"_id": quiz_id},
+        {"$set": {"category": new_category}}
+    )
+    return redirect(url_for('home'))
+
 @app.route('/update-question/<quiz_id>/<int:q_index>', methods=['POST'])
 def update_question(quiz_id, q_index):
     doc = quizzes_collection.find_one({"_id": quiz_id})
@@ -525,7 +534,7 @@ def send_leaderboard(chat_id):
     latest_score_doc = scores_collection.find_one({"score": {"$exists": True}}, sort=[("_id", -1)])
     
     if not latest_score_doc:
-        send_message(chat_id, "⚠️ No active quiz record found! / कोई सक्रिय क्विज़ रिकॉर्ड नहीं है!")
+        send_message(chat_id, "⚠️ कोई सक्रिय क्विज़ रिकॉर्ड नहीं मिला है!")
         return
 
     q_id = latest_score_doc.get("quiz_id")
@@ -535,17 +544,41 @@ def send_leaderboard(chat_id):
     top_users = list(scores_collection.find({"quiz_id": q_id, "score": {"$exists": True}}).sort("score", -1).limit(100))
     
     if not top_users:
-        send_message(chat_id, "📊 No one has answered yet! / अभी तक किसी ने उत्तर नहीं दिया है!")
+        send_message(chat_id, "📊 इस क्विज़ के लिए अभी तक किसी ने उत्तर नहीं दिया है!")
         return
 
-    text = f"🏆 *LEADERBOARD: {quiz_title}*\n-----------------------------------\n"
+    winner = top_users[0].get("user_name", "User") if len(top_users) > 0 else ""
+    runner1 = top_users[1].get("user_name", "User") if len(top_users) > 1 else ""
+    runner2 = top_users[2].get("user_name", "User") if len(top_users) > 2 else ""
+
+    text = f"🏆 *Quiz Toppers* 🏆\n"
+    if winner:
+        text += f"👑 *Winner:* {winner}\n"
+    if runner1:
+        text += f"🥈 *Runner 1:* {runner1}\n"
+    if runner2:
+        text += f"🥉 *Runner 2:* {runner2}\n"
+    
+    text += f"\n🏆 *{quiz_title}* 🏆\n\n"
+    text += f"📊 *FULL LEADERBOARD*\n"
+    text += f"-----------------------------------\n"
+
     for rank, user in enumerate(top_users, 1):
         name = user.get("user_name", "User")
         score = user.get("score", 0.0)
         correct = user.get("correct", 0)
         incorrect = user.get("incorrect", 0)
+        
+        total_attempted = correct + incorrect
+        accuracy = (correct / total_attempted * 100) if total_attempted > 0 else 0.0
+
         medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"{rank}."
-        text += f"{medal} *{name}* — Score / स्कोर: *{score:.2f}* (✅ {correct} | ❌ {incorrect})\n"
+        
+        text += f"{medal} *{name}:*\n"
+        text += f"⭐ {score:.1f} | ✅ {correct} | ❌ {incorrect} | 🟢 {accuracy:.1f}%\n\n"
+
+    if len(text) > 4000:
+        text = text[:3900] + "\n\n... (List truncated due to length)"
 
     send_message(chat_id, text)
 
