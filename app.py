@@ -4,6 +4,7 @@ import re
 import time
 import threading
 import os
+import random
 import requests
 from flask import Flask, request, render_template, redirect, url_for
 from pypdf import PdfReader
@@ -34,6 +35,7 @@ def load_quizzes():
             q_id = str(doc["_id"])
             quizzes[q_id] = {
                 "title": doc.get("title", "Untitled"),
+                "category": doc.get("category", "Chapter-wise"),
                 "questions": doc.get("questions", []),
                 "created_at": doc.get("created_at", "")
             }
@@ -159,6 +161,7 @@ def upload_quiz():
     try:
         admin_id = request.form.get('admin_id', '').strip()
         quiz_title = request.form.get('quiz_title', 'Untitled Quiz').strip()
+        category = request.form.get('category', 'Chapter-wise').strip()
         
         if admin_id != OWNER_TELEGRAM_ID:
             return "<h3>❌ Error: Invalid Telegram User ID! / त्रुटि: टेलीग्राम यूजर आईडी गलत है!</h3>"
@@ -188,6 +191,7 @@ def upload_quiz():
         quiz_data = {
             "_id": quiz_id,
             "title": quiz_title,
+            "category": category,
             "questions": questions,
             "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
         }
@@ -203,6 +207,7 @@ def preview_quiz(quiz_id):
         return "<h3>❌ Quiz not found! / क्विज़ नहीं मिली!</h3>"
     quiz = {
         "title": doc.get("title"),
+        "category": doc.get("category", "Chapter-wise"),
         "questions": doc.get("questions"),
         "created_at": doc.get("created_at")
     }
@@ -237,7 +242,7 @@ def view_quiz_scores(quiz_id):
     <body>
         <div class="container">
             <h2>🏆 Leaderboard: {doc.get('title')}</h2>
-            <p>Total Candidates: <b>{len(scores)}</b></p>
+            <p>Category: <b>{doc.get('category', 'Chapter-wise')}</b> | Total Candidates: <b>{len(scores)}</b></p>
             <table>
                 <tr>
                     <th>Rank</th>
@@ -337,6 +342,8 @@ def play_group(quiz_id):
         current_negative_marking = float(neg_val_str)
     except:
         current_negative_marking = -0.33
+
+    shuffle_enabled = request.form.get('shuffle_options') == 'on'
     
     if not target_group:
         return "<h3>❌ Please enter Telegram Group Username!<br>टेलीग्राम ग्रुप यूजरनेम दर्ज करें!</h3>"
@@ -352,7 +359,7 @@ def play_group(quiz_id):
     current_active_quiz_id = quiz_id
     scores_collection.delete_many({"quiz_id": quiz_id})
 
-    thread = threading.Thread(target=run_live_quiz, args=(target_group, questions, timer, quiz_id, current_negative_marking))
+    thread = threading.Thread(target=run_live_quiz, args=(target_group, questions, timer, quiz_id, current_negative_marking, shuffle_enabled))
     thread.daemon = True
     thread.start()
 
@@ -415,14 +422,14 @@ def play_group(quiz_id):
     <body>
         <div class="card">
             <h2>🎉 Live Quiz Started / लाइव क्विज़ शुरू हो चुकी है!</h2>
-            <p>Total <b>{len(questions)}</b> questions are being sent to <b>'{target_group}'</b>.<br>कुल <b>{len(questions)}</b> सवाल ग्रुप में भेजे जा रहे हैं。<br><br><b>Negative Marking:</b> {current_negative_marking}</p>
+            <p>Total <b>{len(questions)}</b> questions sent to <b>'{target_group}'</b>.<br>कुल <b>{len(questions)}</b> सवाल भेजे जा रहे हैं。<br><br><b>Negative Marking:</b> {current_negative_marking}<br><b>Shuffle Options:</b> {'Yes (हाँ)' if shuffle_enabled else 'No (नहीं)'}</p>
             <a href="/" class="btn">Go Back / वापस जाएं</a>
         </div>
     </body>
     </html>
     """
 
-def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking):
+def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking, shuffle_enabled):
     global active_quiz_running, stop_requested
     with quiz_lock:
         active_quiz_running = True
@@ -437,9 +444,18 @@ def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking):
                 if len(raw_opts) < 2:
                     continue
 
+                correct_idx_original = int(q['correct'])
+                correct_text = raw_opts[correct_idx_original] if correct_idx_original < len(raw_opts) else raw_opts[0]
+                
+                shuffled_opts = list(raw_opts)
+                if shuffle_enabled:
+                    random.shuffle(shuffled_opts)
+                
+                new_correct_idx = shuffled_opts.index(correct_text)
+
                 q_text = q['question']
                 msg_content = f"<b>[Q.{index+1}/{total_q} / प्रश्न {index+1}/{total_q}]</b>\n\n<b>Question / सवाल:</b> {q_text}\n\n<b>Options / विकल्प:</b>\n"
-                for i, opt in enumerate(raw_opts):
+                for i, opt in enumerate(shuffled_opts):
                     opt_label = chr(65 + i)
                     msg_content += f"<b>{opt_label})</b> {opt}\n"
                 
@@ -447,14 +463,14 @@ def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking):
                 time.sleep(1)
 
                 url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPoll"
-                poll_opts = ["A", "B", "C", "D"][:len(raw_opts)]
+                poll_opts = ["A", "B", "C", "D"][:len(shuffled_opts)]
                 
                 poll_payload = {
                     "chat_id": chat_id,
                     "question": f"Q.{index+1}/{total_q}: Select correct option / सही विकल्प चुनें 👇",
                     "options": json.dumps(poll_opts),
                     "type": "quiz",
-                    "correct_option_id": int(q['correct']),
+                    "correct_option_id": new_correct_idx,
                     "is_anonymous": False
                 }
                 
@@ -475,7 +491,7 @@ def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking):
                                 scores_collection.insert_one({
                                     "poll_id": p_id,
                                     "quiz_id": quiz_id,
-                                    "correct_opt": int(q['correct']),
+                                    "correct_opt": new_correct_idx,
                                     "negative_marking": negative_marking
                                 })
                             break
@@ -508,7 +524,6 @@ def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking):
             stop_requested = False
 
 def send_leaderboard(chat_id):
-    # Database se sabse aakhri quiz ka record dhoondhein jiska score save hua hai
     latest_score_doc = scores_collection.find_one({"score": {"$exists": True}}, sort=[("_id", -1)])
     
     if not latest_score_doc:
@@ -519,7 +534,6 @@ def send_leaderboard(chat_id):
     quiz_doc = quizzes_collection.find_one({"_id": q_id})
     quiz_title = quiz_doc.get("title", "Quiz") if quiz_doc else "Quiz"
 
-    # Limit badhaakar 100 kar di gayi hai taaki 100 candidates tak ka score dikhe
     top_users = list(scores_collection.find({"quiz_id": q_id, "score": {"$exists": True}}).sort("score", -1).limit(100))
     
     if not top_users:

@@ -22,7 +22,7 @@
 <body>
     <div class="container">
         <h2>📊 {{ quiz.title }}</h2>
-        <p>Total Questions / कुल सवाल: <b>{{ quiz.questions|length }}</b></p>
+        <p>Category: <b>{{ quiz.category }}</b> | Total Questions / कुल सवाल: <b>{{ quiz.questions|length }}</b></p>
         
         <!-- Start Live Quiz Form -->
         <form action="/play-group/{{ quiz_id }}" method="POST" style="background: #252525; padding: 20px; border-radius: 6px; margin-top: 20px; border: 1px solid #444;">
@@ -53,7 +53,12 @@
                 </select>
             </div>
 
-            <button type="submit">Start Live Quiz Now / लाइव क्विज़ शुरू करें</button>
+            <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-top: 15px;">
+                <input type="checkbox" id="shuffle_options" name="shuffle_options" style="width: 20px; height: 20px; cursor: pointer;">
+                <label for="shuffle_options" style="margin: 0; cursor: pointer; color: #fff;">Shuffle Options (विकल्प आगे-पीछे करें)</label>
+            </div>
+
+            <button type="submit" style="margin-top: 15px;">Start Live Quiz Now / लाइव क्विज़ शुरू करें</button>
         </form>
 
         <hr style="border: 0; border-top: 1px solid #444; margin: 30px 0;">
