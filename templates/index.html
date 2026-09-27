@@ -69,6 +69,11 @@
             font-size: 16px;
             font-weight: bold;
             color: #fff;
+            margin-bottom: 5px;
+        }
+        .quiz-category {
+            font-size: 13px;
+            color: #ff9800;
             margin-bottom: 10px;
         }
         .btn-row {
@@ -85,6 +90,17 @@
             text-align: center;
             flex: 1;
         }
+        .btn-scores {
+            background-color: #ff9800;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-size: 14px;
+            text-align: center;
+            flex: 1;
+            font-weight: bold;
+        }
         .btn-delete {
             background-color: #f44336;
             color: white;
@@ -96,6 +112,7 @@
             flex: 1;
         }
         .btn-review:hover { background-color: #1976d2; }
+        .btn-scores:hover { background-color: #f57c00; }
         .btn-delete:hover { background-color: #d32f2f; }
     </style>
 </head>
@@ -115,6 +132,14 @@
                 <label>Quiz Title / Name:</label>
                 <input type="text" name="quiz_title" placeholder="Jaise: Railway Leave Rules" required>
             </div>
+
+            <div class="form-group">
+                <label>Select Folder / Category (किस फोल्डर में सेव करें):</label>
+                <select name="category" required>
+                    <option value="Chapter-wise">Chapter-wise Quiz</option>
+                    <option value="PYQ (Previous Year)">PYQ (Previous Year Questions)</option>
+                </select>
+            </div>
             
             <div class="form-group">
                 <label>Upload Quiz File (.json, .txt, .pdf):</label>
@@ -132,8 +157,10 @@
             {% for q_id, q_data in quizzes.items() %}
                 <div class="quiz-card">
                     <div class="quiz-title">{{ q_data.title }} ({{ q_data.questions|length }} Sawaal)</div>
+                    <div class="quiz-category">📂 Folder: {{ q_data.category }}</div>
                     <div class="btn-row">
                         <a href="/preview/{{ q_id }}" class="btn-review">Review / Edit</a>
+                        <a href="/quiz-scores/{{ q_id }}" class="btn-scores">Scores 🏆</a>
                         <form action="/delete-quiz/{{ q_id }}" method="POST" style="flex: 1; margin: 0;">
                             <button type="submit" class="btn-delete" onclick="return confirm('Kya aap is quiz ko delete karna chahte hain?');">Delete</button>
                         </form>

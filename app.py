@@ -179,7 +179,7 @@ def upload_quiz():
         elif file_name.endswith(('.txt', '.pdf')):
             if file_name.endswith('.pdf'):
                 reader = PdfReader(io.BytesIO(file_bytes))
-                text_content = "".join([page.extract_text() for page in reader.pages])
+                text_content = "".join([page.extract_text() for page in reader.pages if page.extract_text()])
             else:
                 text_content = file_bytes.decode('utf-8')
             questions = parse_text_regex(text_content)
@@ -460,7 +460,7 @@ def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking, shuffle_
                     msg_content += f"<b>{opt_label})</b> {opt}\n"
                 
                 send_html_message(chat_id, msg_content)
-                time.sleep(1)
+                time.sleep(0.5)
 
                 url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPoll"
                 poll_opts = ["A", "B", "C", "D"][:len(shuffled_opts)]
@@ -477,14 +477,12 @@ def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking, shuffle_
                 if timer > 0:
                     poll_payload["open_period"] = timer
 
-                sent_success = False
-                for attempt in range(3):
+                for attempt in range(2):
                     if stop_requested:
                         break
                     try:
-                        res = requests.post(url, data=poll_payload, timeout=10)
+                        res = requests.post(url, data=poll_payload, timeout=5)
                         if res.status_code == 200:
-                            sent_success = True
                             res_data = res.json()
                             if "result" in res_data and "poll" in res_data["result"]:
                                 p_id = str(res_data["result"]["poll"]["id"])
@@ -496,11 +494,11 @@ def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking, shuffle_
                                 })
                             break
                         else:
-                            time.sleep(2)
+                            time.sleep(1)
                     except Exception:
-                        time.sleep(2)
+                        time.sleep(1)
 
-                wait_time = (timer if timer > 0 else 35) + 3
+                wait_time = (timer if timer > 0 else 35) + 2
                 for _ in range(wait_time):
                     if stop_requested:
                         break
@@ -513,11 +511,11 @@ def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking, shuffle_
                 if (index + 1) % 10 == 0 and (index + 1) < total_q:
                     score_msg = f"📊 *Progress Report / प्रगति रिपोर्ट*\n-----------------------------------\n👉 Completed *{index + 1}* of {total_q} questions.\n👉 अभी तक *{index + 1}* सवाल पूरे हो चुके हैं।\n💡 Type */score* to check standings / स्कोर के लिए */score* भेजें।"
                     send_message(chat_id, score_msg)
-                    time.sleep(3)
+                    time.sleep(1.5)
 
             if not stop_requested:
                 send_message(chat_id, f"🏆 *Quiz Completed! / क्विज़ समाप्त हुई!* All {total_q} questions posted. / सभी {total_q} सवाल पूरे हो चुके हैं।")
-                time.sleep(2)
+                time.sleep(1)
                 send_leaderboard(chat_id)
         finally:
             active_quiz_running = False
@@ -555,7 +553,7 @@ def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
     try:
-        requests.post(url, data=payload, timeout=10)
+        requests.post(url, data=payload, timeout=5)
     except Exception as e:
         print(f"Send message error: {e}")
 
@@ -563,7 +561,7 @@ def send_html_message(chat_id, text):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
     try:
-        requests.post(url, data=payload, timeout=10)
+        requests.post(url, data=payload, timeout=5)
     except Exception as e:
         print(f"Send HTML message error: {e}")
 
@@ -571,7 +569,7 @@ def parse_text_regex(text):
     parsed = []
     raw_blocks = text.split('\n\n')
     if len(raw_blocks) <= 1:
-        raw_blocks = [text]
+        raw_blocks = text.split('\n\n\n')
 
     for block in raw_blocks:
         lines = [l.strip() for l in block.split('\n') if l.strip()]
