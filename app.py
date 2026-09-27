@@ -74,27 +74,19 @@ def telegram_webhook():
                 send_message(chat_id, welcome_text)
 
             elif text.startswith("/mystore"):
-                store_text = (
-                    "📂 **Quiz Store / क्विज़ स्टोर:**\n"
-                    "All quizzes are securely stored on the admin dashboard.\n"
-                    "सभी क्विज़ एडमिन डैशबोर्ड पर सुरक्षित रूप से संग्रहीत हैं।"
-                )
+                store_text = "📂 **Quiz Store / क्विज़ स्टोर:**\nAll quizzes are securely stored on the admin dashboard."
                 send_message(chat_id, store_text)
 
             elif text.startswith("/help"):
-                help_text = (
-                    "📖 **Help & Instructions / सहायता निर्देश:**\n\n"
-                    "• /stop - Stop current quiz (Admin Only) / क्विज़ रोकने के लिए (केवल एडमिन)\n"
-                    "• /score - View live leaderboard / लाइव लीडरबोर्ड देखने के लिए"
-                )
+                help_text = "📖 **Help & Instructions:**\n• /stop - Stop current quiz (Admin Only)\n• /score - View leaderboard"
                 send_message(chat_id, help_text)
 
             elif text.startswith("/stop"):
                 if user_id != OWNER_TELEGRAM_ID:
-                    send_message(chat_id, "⚠️ You are not authorized to stop the quiz!\n⚠️ आपके पास क्विज़ रोकने की अनुमति नहीं है!")
+                    send_message(chat_id, "⚠️ You are not authorized to stop the quiz!")
                 else:
                     stop_requested = True
-                    send_message(chat_id, "🛑 Stopping the quiz...\n🛑 क्विज़ को रोका जा रहा है...")
+                    send_message(chat_id, "🛑 Stopping the quiz...")
             
             elif text.startswith("/score") or text.startswith("/leaderboard"):
                 send_leaderboard(chat_id)
@@ -115,7 +107,6 @@ def telegram_webhook():
                 if doc:
                     correct_opt = doc.get("correct_opt")
                     is_correct = (selected_opt == correct_opt)
-                    
                     neg_val = doc.get("negative_marking", -0.33)
                     score_change = 1.0 if is_correct else neg_val
 
@@ -135,40 +126,20 @@ def telegram_webhook():
         print(f"Webhook Exception: {e}")
     return "OK", 200
 
-# --- WhatsApp Webhook Integration ---
-@app.route('/whatsapp-webhook', methods=['GET', 'POST'])
-def whatsapp_webhook():
-    if request.method == 'GET':
-        verify_token = "swiguru_verify_token_123"
-        mode = request.args.get("hub.mode")
-        token = request.args.get("hub.verify_token")
-        challenge = request.args.get("hub.challenge")
-        
-        if mode and token and mode == "subscribe" and token == verify_token:
-            return challenge, 200
-        return "Verification Failed", 403
-
-    elif request.method == 'POST':
-        data = request.get_json(force=True, silent=True)
-        try:
-            pass
-        except Exception as e:
-            print(f"WhatsApp Webhook Error: {e}")
-        return "OK", 200
-
+# --- Protected Admin Actions ---
 @app.route('/upload-quiz', methods=['POST'])
 def upload_quiz():
+    admin_id = request.form.get('admin_id', '').strip()
+    if admin_id != OWNER_TELEGRAM_ID:
+        return "<h3>❌ Access Denied: Invalid Admin Telegram User ID! / अनुमति अस्वीकृत: गलत एडमिन आईडी!</h3>", 403
+
     try:
-        admin_id = request.form.get('admin_id', '').strip()
         quiz_title = request.form.get('quiz_title', 'Untitled Quiz').strip()
         category = request.form.get('category', 'Chapter-wise').strip()
-        
-        if admin_id != OWNER_TELEGRAM_ID:
-            return "<h3>❌ Error: Invalid Telegram User ID! / त्रुटि: टेलीग्राम यूजर आईडी गलत है!</h3>"
-
         file = request.files.get('file')
+        
         if not file or file.filename == '':
-            return "<h3>❌ Error: No file selected! / कोई फ़ाइल चयनित नहीं है!</h3>"
+            return "<h3>❌ Error: No file selected!</h3>"
 
         file_bytes = file.read()
         file_name = file.filename.lower()
@@ -185,7 +156,7 @@ def upload_quiz():
             questions = parse_text_regex(text_content)
             
         if not questions:
-            return "<h3>❌ Error: No questions found! / फ़ाइल से सवाल नहीं मिल पाए!</h3>"
+            return "<h3>❌ Error: No questions found!</h3>"
 
         quiz_id = str(int(time.time()))
         quiz_data = {
@@ -204,7 +175,7 @@ def upload_quiz():
 def preview_quiz(quiz_id):
     doc = quizzes_collection.find_one({"_id": quiz_id})
     if not doc:
-        return "<h3>❌ Quiz not found! / क्विज़ नहीं मिली!</h3>"
+        return "<h3>❌ Quiz not found!</h3>"
     quiz = {
         "title": doc.get("title"),
         "category": doc.get("category", "Chapter-wise"),
@@ -220,39 +191,22 @@ def view_quiz_scores(quiz_id):
         return "<h3>❌ Quiz nahi mili!</h3>"
     
     scores = list(scores_collection.find({"quiz_id": quiz_id}).sort("score", -1))
-    
     html = f"""
     <!DOCTYPE html>
     <html lang="hi">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Leaderboard - {doc.get('title')}</title>
-        <style>
-            body {{ background-color: #121212; color: #fff; font-family: sans-serif; padding: 20px; }}
-            .container {{ max-width: 650px; margin: 0 auto; background: #1e1e1e; padding: 25px; border-radius: 10px; border: 1px solid #333; }}
-            h2 {{ color: #4caf50; text-align: center; }}
-            table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
-            th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #333; }}
-            th {{ background: #252525; color: #4caf50; }}
-            tr:hover {{ background: #2a2a2a; }}
-            .btn {{ display: inline-block; margin-top: 20px; padding: 10px 20px; background: #2196f3; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h2>🏆 Leaderboard: {doc.get('title')}</h2>
-            <p>Category: <b>{doc.get('category', 'Chapter-wise')}</b> | Total Candidates: <b>{len(scores)}</b></p>
-            <table>
-                <tr>
-                    <th>Rank</th>
-                    <th>Candidate Name</th>
-                    <th>Score</th>
-                    <th>Correct (✅)</th>
-                    <th>Incorrect (❌)</th>
-                </tr>
+    <head><meta charset="UTF-8"><title>Leaderboard - {doc.get('title')}</title>
+    <style>body {{ background-color: #121212; color: #fff; font-family: sans-serif; padding: 20px; }}
+    .container {{ max-width: 650px; margin: 0 auto; background: #1e1e1e; padding: 25px; border-radius: 10px; border: 1px solid #333; }}
+    h2 {{ color: #4caf50; text-align: center; }}
+    table {{ width: 100%; border-collapse: collapse; margin-top: 20px; }}
+    th, td {{ padding: 12px; text-align: left; border-bottom: 1px solid #333; }}
+    th {{ background: #252525; color: #4caf50; }}
+    .btn {{ display: inline-block; margin-top: 20px; padding: 10px 20px; background: #2196f3; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }}
+    </style></head>
+    <body><div class="container"><h2>🏆 Leaderboard: {doc.get('title')}</h2>
+    <p>Category: <b>{doc.get('category', 'Chapter-wise')}</b> | Total Candidates: <b>{len(scores)}</b></p>
+    <table><tr><th>Rank</th><th>Candidate Name</th><th>Score</th><th>Correct (✅)</th><th>Incorrect (❌)</th></tr>
     """
-    
     for rank, user in enumerate(scores, 1):
         name = user.get("user_name", "User")
         score = user.get("score", 0.0)
@@ -260,36 +214,29 @@ def view_quiz_scores(quiz_id):
         incorrect = user.get("incorrect", 0)
         medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"{rank}"
         html += f"<tr><td>{medal}</td><td>{name}</td><td><b>{score:.2f}</b></td><td>{correct}</td><td>{incorrect}</td></tr>"
-        
-    html += f"""
-            </table>
-            <a href="/" class="btn">← Back to Home / होम पेज पर जाएं</a>
-        </div>
-    </body>
-    </html>
-    """
+    html += "</table><a href='/' class='btn'>← Back to Home</a></div></body></html>"
     return html
 
 @app.route('/move-quiz/<quiz_id>', methods=['POST'])
 def move_quiz(quiz_id):
+    admin_id = request.form.get('admin_id', '').strip()
+    if admin_id != OWNER_TELEGRAM_ID:
+        return "<h3>❌ Access Denied: Invalid Admin ID! / अनुमति अस्वीकृत</h3>", 403
+    
     new_category = request.form.get('category', 'Chapter-wise').strip()
-    quizzes_collection.update_one(
-        {"_id": quiz_id},
-        {"$set": {"category": new_category}}
-    )
+    quizzes_collection.update_one({"_id": quiz_id}, {"$set": {"category": new_category}})
     return redirect(url_for('home'))
 
 @app.route('/update-question/<quiz_id>/<int:q_index>', methods=['POST'])
 def update_question(quiz_id, q_index):
+    # Note: Aap preview.html mein admin ID verify kar sakte hain ya yahan bhi check laga sakte hain
     doc = quizzes_collection.find_one({"_id": quiz_id})
     if doc:
         questions = doc.get("questions", [])
         if 0 <= q_index < len(questions):
             data = request.form
             questions[q_index]['question'] = data.get('question')
-            questions[q_index]['options'] = [
-                data.get('opt0'), data.get('opt1'), data.get('opt2'), data.get('opt3')
-            ]
+            questions[q_index]['options'] = [data.get('opt0'), data.get('opt1'), data.get('opt2'), data.get('opt3')]
             questions[q_index]['correct'] = int(data.get('correct'))
             quizzes_collection.update_one({"_id": quiz_id}, {"$set": {"questions": questions}})
     return redirect(url_for('preview_quiz', quiz_id=quiz_id))
@@ -321,6 +268,10 @@ def delete_question(quiz_id, q_index):
 
 @app.route('/delete-quiz/<quiz_id>', methods=['POST'])
 def delete_quiz(quiz_id):
+    admin_id = request.form.get('admin_id', '').strip()
+    if admin_id != OWNER_TELEGRAM_ID:
+        return "<h3>❌ Access Denied: Invalid Admin ID! / अनुमति अस्वीकृत</h3>", 403
+
     quizzes_collection.delete_one({"_id": quiz_id})
     return redirect(url_for('home'))
 
@@ -330,39 +281,32 @@ def play_group(quiz_id):
     
     input_admin_id = request.form.get('admin_id', '').strip()
     if input_admin_id != OWNER_TELEGRAM_ID:
-        return """
-        <div style="background: #ffebee; color: #c62828; padding: 25px; border-radius: 10px; font-family: sans-serif; text-align: center; margin: 40px auto; max-width: 500px; border: 2px solid #ef5350;">
-            <h3>❌ Access Denied / अनुमति अस्वीकृत</h3>
-            <p>Only Bot Owner can start the quiz!<br>केवल बॉट ओनर ही ग्रुप में क्विज़ शुरू कर सकता है!</p>
-            <a href="/" style="display: inline-block; margin-top: 15px; padding: 10px 20px; background: #c62828; color: white; text-decoration: none; border-radius: 5px;">Go Back / वापस जाएं</a>
-        </div>
-        """
+        return "<h3>❌ Access Denied: Only Bot Owner can start the quiz!</h3>", 403
 
     doc = quizzes_collection.find_one({"_id": quiz_id})
     if not doc:
-        return "<h3>❌ Quiz not found! / क्विज़ नहीं मिली!</h3>"
+        return "<h3>❌ Quiz not found!</h3>"
         
     target_group = request.form.get('group_id', '').strip()
     timer_val = request.form.get('timer', '35')
     timer = int(timer_val) if timer_val.isdigit() else 35
 
-    neg_val_str = request.form.get('negative_marking', '-0.33')
     try:
-        current_negative_marking = float(neg_val_str)
+        current_negative_marking = float(request.form.get('negative_marking', '-0.33'))
     except:
         current_negative_marking = -0.33
 
     shuffle_enabled = request.form.get('shuffle_options') == 'on'
     
     if not target_group:
-        return "<h3>❌ Please enter Telegram Group Username!<br>टेलीग्राम ग्रुप यूजरनेम दर्ज करें!</h3>"
+        return "<h3>❌ Please enter Telegram Group Username!</h3>"
         
     questions = doc.get('questions', [])
     if not questions:
-        return "<h3>❌ No questions in this quiz!<br>इस क्विज़ में कोई सवाल नहीं है!</h3>"
+        return "<h3>❌ No questions in this quiz!</h3>"
 
     if active_quiz_running:
-        return "<h3>⚠️ A quiz is already running! Please use /stop.<br>एक क्विज़ पहले से चल रही है!</h3>"
+        return "<h3>⚠️ A quiz is already running! Please use /stop.</h3>"
 
     stop_requested = False
     current_active_quiz_id = quiz_id
@@ -373,69 +317,13 @@ def play_group(quiz_id):
     thread.start()
 
     return f"""
-    <!DOCTYPE html>
-    <html lang="hi">
-    <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Quiz Status - ExamGuru</title>
-        <style>
-            body {{
-                background-color: #121212;
-                color: #ffffff;
-                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                height: 100vh;
-                margin: 0;
-            }}
-            .card {{
-                background: #1e1e1e;
-                padding: 30px;
-                border-radius: 12px;
-                box-shadow: 0 8px 24px rgba(0,0,0,0.5);
-                text-align: center;
-                max-width: 450px;
-                width: 90%;
-                border: 1px solid #333;
-            }}
-            h2 {{
-                color: #4caf50;
-                font-size: 22px;
-                margin-bottom: 15px;
-            }}
-            p {{
-                color: #e0e0e0;
-                font-size: 16px;
-                line-height: 1.5;
-                margin-bottom: 25px;
-            }}
-            .btn {{
-                background-color: #4caf50;
-                color: white;
-                padding: 12px 25px;
-                border: none;
-                border-radius: 6px;
-                font-size: 16px;
-                cursor: pointer;
-                text-decoration: none;
-                font-weight: bold;
-                display: inline-block;
-            }}
-            .btn:hover {{
-                background-color: #43a047;
-            }}
-        </style>
-    </head>
-    <body>
-        <div class="card">
-            <h2>🎉 Live Quiz Started / लाइव क्विज़ शुरू हो चुकी है!</h2>
-            <p>Total <b>{len(questions)}</b> questions sent to <b>'{target_group}'</b>.<br>कुल <b>{len(questions)}</b> सवाल भेजे जा रहे हैं。<br><br><b>Negative Marking:</b> {current_negative_marking}<br><b>Shuffle Options:</b> {'Yes (हाँ)' if shuffle_enabled else 'No (नहीं)'}</p>
-            <a href="/" class="btn">Go Back / वापस जाएं</a>
-        </div>
-    </body>
-    </html>
+    <!DOCTYPE html><html lang="hi"><head><meta charset="UTF-8"><title>Quiz Status</title>
+    <style>body {{ background: #121212; color: #fff; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }}
+    .card {{ background: #1e1e1e; padding: 30px; border-radius: 12px; text-align: center; border: 1px solid #333; }}
+    h2 {{ color: #4caf50; }} .btn {{ background: #4caf50; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; font-weight: bold; display: inline-block; margin-top: 15px; }}
+    </style></head><body><div class="card"><h2>🎉 Live Quiz Started!</h2>
+    <p>Total <b>{len(questions)}</b> questions sending to <b>'{target_group}'</b>.</p>
+    <a href="/" class="btn">Go Back / वापस जाएं</a></div></body></html>
     """
 
 def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking, shuffle_enabled):
@@ -446,7 +334,7 @@ def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking, shuffle_
             total_q = len(questions)
             for index, q in enumerate(questions):
                 if stop_requested:
-                    send_message(chat_id, "🛑 *Quiz has been stopped! / क्विज़ को रोक दिया गया है!*")
+                    send_message(chat_id, "🛑 *Quiz has been stopped!*")
                     break
 
                 raw_opts = q.get('options', [])
@@ -459,30 +347,25 @@ def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking, shuffle_
                 shuffled_opts = list(raw_opts)
                 if shuffle_enabled:
                     random.shuffle(shuffled_opts)
-                
                 new_correct_idx = shuffled_opts.index(correct_text)
 
                 q_text = q['question']
-                msg_content = f"<b>[Q.{index+1}/{total_q} / प्रश्न {index+1}/{total_q}]</b>\n\n<b>Question / सवाल:</b> {q_text}\n\n<b>Options / विकल्प:</b>\n"
+                msg_content = f"<b>[Q.{index+1}/{total_q}]</b>\n\n<b>Question:</b> {q_text}\n\n<b>Options:</b>\n"
                 for i, opt in enumerate(shuffled_opts):
-                    opt_label = chr(65 + i)
-                    msg_content += f"<b>{opt_label})</b> {opt}\n"
+                    msg_content += f"<b>{chr(65+i)})</b> {opt}\n"
                 
                 send_html_message(chat_id, msg_content)
                 time.sleep(0.5)
 
                 url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendPoll"
-                poll_opts = ["A", "B", "C", "D"][:len(shuffled_opts)]
-                
                 poll_payload = {
                     "chat_id": chat_id,
-                    "question": f"Q.{index+1}/{total_q}: Select correct option / सही विकल्प चुनें 👇",
-                    "options": json.dumps(poll_opts),
+                    "question": f"Q.{index+1}/{total_q}: Select correct option 👇",
+                    "options": json.dumps(["A", "B", "C", "D"][:len(shuffled_opts)]),
                     "type": "quiz",
                     "correct_option_id": new_correct_idx,
                     "is_anonymous": False
                 }
-                
                 if timer > 0:
                     poll_payload["open_period"] = timer
 
@@ -494,9 +377,8 @@ def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking, shuffle_
                         if res.status_code == 200:
                             res_data = res.json()
                             if "result" in res_data and "poll" in res_data["result"]:
-                                p_id = str(res_data["result"]["poll"]["id"])
                                 scores_collection.insert_one({
-                                    "poll_id": p_id,
+                                    "poll_id": str(res_data["result"]["poll"]["id"]),
                                     "quiz_id": quiz_id,
                                     "correct_opt": new_correct_idx,
                                     "negative_marking": negative_marking
@@ -504,7 +386,7 @@ def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking, shuffle_
                             break
                         else:
                             time.sleep(1)
-                    except Exception:
+                    except:
                         time.sleep(1)
 
                 wait_time = (timer if timer > 0 else 35) + 2
@@ -514,16 +396,15 @@ def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking, shuffle_
                     time.sleep(1)
 
                 if stop_requested:
-                    send_message(chat_id, "🛑 *Quiz has been stopped! / क्विज़ को रोक दिया गया है!*")
+                    send_message(chat_id, "🛑 *Quiz has been stopped!*")
                     break
 
                 if (index + 1) % 10 == 0 and (index + 1) < total_q:
-                    score_msg = f"📊 *Progress Report / प्रगति रिपोर्ट*\n-----------------------------------\n👉 Completed *{index + 1}* of {total_q} questions.\n👉 अभी तक *{index + 1}* सवाल पूरे हो चुके हैं।\n💡 Type */score* to check standings / स्कोर के लिए */score* भेजें।"
-                    send_message(chat_id, score_msg)
+                    send_message(chat_id, f"📊 *Progress Report:* Completed *{index + 1}* of {total_q} questions.\n💡 Type */score* to check standings.")
                     time.sleep(1.5)
 
             if not stop_requested:
-                send_message(chat_id, f"🏆 *Quiz Completed! / क्विज़ समाप्त हुई!* All {total_q} questions posted. / सभी {total_q} सवाल पूरे हो चुके हैं।")
+                send_message(chat_id, f"🏆 *Quiz Completed!* All {total_q} questions posted.")
                 time.sleep(1)
                 send_leaderboard(chat_id)
         finally:
@@ -532,7 +413,6 @@ def run_live_quiz(chat_id, questions, timer, quiz_id, negative_marking, shuffle_
 
 def send_leaderboard(chat_id):
     latest_score_doc = scores_collection.find_one({"score": {"$exists": True}}, sort=[("_id", -1)])
-    
     if not latest_score_doc:
         send_message(chat_id, "⚠️ कोई सक्रिय क्विज़ रिकॉर्ड नहीं मिला है!")
         return
@@ -542,7 +422,6 @@ def send_leaderboard(chat_id):
     quiz_title = quiz_doc.get("title", "Quiz") if quiz_doc else "Quiz"
 
     top_users = list(scores_collection.find({"quiz_id": q_id, "score": {"$exists": True}}).sort("score", -1).limit(100))
-    
     if not top_users:
         send_message(chat_id, "📊 इस क्विज़ के लिए अभी तक किसी ने उत्तर नहीं दिया है!")
         return
@@ -552,82 +431,55 @@ def send_leaderboard(chat_id):
     runner2 = top_users[2].get("user_name", "User") if len(top_users) > 2 else ""
 
     text = f"🏆 *Quiz Toppers* 🏆\n"
-    if winner:
-        text += f"👑 *Winner:* {winner}\n"
-    if runner1:
-        text += f"🥈 *Runner 1:* {runner1}\n"
-    if runner2:
-        text += f"🥉 *Runner 2:* {runner2}\n"
+    if winner: text += f"👑 *Winner:* {winner}\n"
+    if runner1: text += f"🥈 *Runner 1:* {runner1}\n"
+    if runner2: text += f"🥉 *Runner 2:* {runner2}\n"
     
-    text += f"\n🏆 *{quiz_title}* 🏆\n\n"
-    text += f"📊 *FULL LEADERBOARD*\n"
-    text += f"-----------------------------------\n"
+    text += f"\n🏆 *{quiz_title}* 🏆\n\n📊 *FULL LEADERBOARD*\n-----------------------------------\n"
 
     for rank, user in enumerate(top_users, 1):
         name = user.get("user_name", "User")
         score = user.get("score", 0.0)
         correct = user.get("correct", 0)
         incorrect = user.get("incorrect", 0)
-        
-        total_attempted = correct + incorrect
-        accuracy = (correct / total_attempted * 100) if total_attempted > 0 else 0.0
-
+        accuracy = (correct / (correct + incorrect) * 100) if (correct + incorrect) > 0 else 0.0
         medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"{rank}."
-        
-        text += f"{medal} *{name}:*\n"
-        text += f"⭐ {score:.1f} | ✅ {correct} | ❌ {incorrect} | 🟢 {accuracy:.1f}%\n\n"
+        text += f"{medal} *{name}:*\n⭐ {score:.1f} | ✅ {correct} | ❌ {incorrect} | 🟢 {accuracy:.1f}%\n\n"
 
-    if len(text) > 4000:
-        text = text[:3900] + "\n\n... (List truncated due to length)"
-
+    if len(text) > 4000: text = text[:3900] + "\n\n... (Truncated)"
     send_message(chat_id, text)
 
 def send_message(chat_id, text):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}
     try:
-        requests.post(url, data=payload, timeout=5)
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}, timeout=5)
     except Exception as e:
-        print(f"Send message error: {e}")
+        print(f"Send error: {e}")
 
 def send_html_message(chat_id, text):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
     try:
-        requests.post(url, data=payload, timeout=5)
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id": chat_id, "text": text, "parse_mode": "HTML"}, timeout=5)
     except Exception as e:
-        print(f"Send HTML message error: {e}")
+        print(f"Send HTML error: {e}")
 
 def parse_text_regex(text):
     parsed = []
     raw_blocks = text.split('\n\n')
-    if len(raw_blocks) <= 1:
-        raw_blocks = text.split('\n\n\n')
+    if len(raw_blocks) <= 1: raw_blocks = text.split('\n\n\n')
 
     for block in raw_blocks:
         lines = [l.strip() for l in block.split('\n') if l.strip()]
-        if len(lines) < 5:
-            continue
-        
-        _lines = lines[:-4]
-        q_text = " ".join(_lines).strip()
-        
+        if len(lines) < 5: continue
+        q_text = " ".join(lines[:-4]).strip()
         options = lines[-4:]
         correct_idx = 0
         cleaned_opts = []
-        
         for i, opt in enumerate(options):
             if "✅" in opt or "✔" in opt:
                 correct_idx = i
                 opt = opt.replace("✅", "").replace("✔", "").strip()
             cleaned_opts.append(opt)
-            
         if len(cleaned_opts) >= 2:
-            parsed.append({
-                "question": q_text,
-                "options": cleaned_opts,
-                "correct": correct_idx
-            })
+            parsed.append({"question": q_text, "options": cleaned_opts, "correct": correct_idx})
     return parsed
 
 if __name__ == '__main__':
