@@ -12,9 +12,10 @@ from pymongo import MongoClient
 
 app = Flask(__name__)
 
-# --- Telegram & Database Credentials ---
+# --- Telegram, Database & Security Credentials ---
 TELEGRAM_TOKEN = "8823022165:AAFo6Dq592mRSVP0-MNU646DdrKgprGMXF8"
 OWNER_TELEGRAM_ID = "7982692248"
+ADMIN_SECRET_PASSWORD = "Swiguru#3014"  # Ye aapka secret password hai!
 
 MONGO_URI = os.getenv("MONGO_URI", "mongodb+srv://singhritesh194_db_user:0j802ayQz30qJqX@cluster0.p83irh9.mongodb.net/?appName=Cluster0")
 client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
@@ -31,7 +32,8 @@ current_negative_marking = -0.33
 def load_quizzes():
     try:
         quizzes = {}
-        for doc in quizzes_collection.find():
+        # .sort("_id", -1) ensures recent quizzes appear on top
+        for doc in quizzes_collection.find().sort("_id", -1):
             q_id = str(doc["_id"])
             quizzes[q_id] = {
                 "title": doc.get("title", "Untitled"),
@@ -65,21 +67,8 @@ def telegram_webhook():
             user_id = str(msg.get("from", {}).get("id", ""))
             
             if text.startswith("/start"):
-                welcome_text = (
-                    "Welcome to exam Guru\n"
-                    "This group will prepare your Railway departmental exam of personal department Like APO, Staff and welfare inspector, office Superintendent, senior Clerk, Jr Clerk providing You Syllabus topic Of your Exam in MCQ form, or previous year question papers in MCQ to test your preparation\n\n"
-                    "-----------------------------------\n\n"
-                    "Exam Guru में आपका स्वागत है। यह Gruop रेलवे के पर्सनल डिपार्टमेंट (जैसे APO, स्टाफ़ और वेलफ़ेयर इंस्पेक्टर, ऑफ़िस सुपरिटेंडेंट, सीनियर क्लर्क, जूनियर क्लर्क) के डिपार्टमेंटल एग्ज़ाम की तैयारी में आपकी मदद करेगा। यह आपको एग्ज़ाम के सिलेबस के टॉपिक MCQ फ़ॉर्मेट में देगा और आपकी तैयारी को परखने के लिए पिछले सालों के प्रश्न-पत्र भी MCQ फ़ॉर्मेट में उपलब्ध कराएगा।"
-                )
+                welcome_text = "Welcome to ExamGuru! रेलवे डिपार्टमेंटल एग्ज़ाम की तैयारी के लिए आपका स्वागत है।"
                 send_message(chat_id, welcome_text)
-
-            elif text.startswith("/mystore"):
-                store_text = "📂 **Quiz Store / क्विज़ स्टोर:**\nAll quizzes are securely stored on the admin dashboard."
-                send_message(chat_id, store_text)
-
-            elif text.startswith("/help"):
-                help_text = "📖 **Help & Instructions:**\n• /stop - Stop current quiz (Admin Only)\n• /score - View leaderboard"
-                send_message(chat_id, help_text)
 
             elif text.startswith("/stop"):
                 if user_id != OWNER_TELEGRAM_ID:
@@ -97,8 +86,7 @@ def telegram_webhook():
             user = answer.get("user", {})
             user_id = str(user.get("id"))
             user_name = user.get("first_name", "User")
-            if user.get("last_name"):
-                user_name += f" {user.get('last_name')}"
+            if user.get("last_name"): user_name += f" {user.get('last_name')}"
             
             option_ids = answer.get("option_ids", [])
             if option_ids:
@@ -108,65 +96,45 @@ def telegram_webhook():
                     correct_opt = doc.get("correct_opt")
                     is_correct = (selected_opt == correct_opt)
                     neg_val = doc.get("negative_marking", -0.33)
-                    score_change = 1.0 if is_correct else neg_val
-
                     scores_collection.update_one(
                         {"user_id": user_id, "quiz_id": doc.get("quiz_id")},
-                        {
-                            "$set": {"user_name": user_name},
-                            "$inc": {
-                                "correct": 1 if is_correct else 0,
-                                "incorrect": 0 if is_correct else 1,
-                                "score": score_change
-                            }
-                        },
+                        {"$set": {"user_name": user_name}, "$inc": {"correct": 1 if is_correct else 0, "incorrect": 0 if is_correct else 1, "score": 1.0 if is_correct else neg_val}},
                         upsert=True
                     )
     except Exception as e:
         print(f"Webhook Exception: {e}")
     return "OK", 200
 
-# --- Protected Admin Actions ---
+# --- Secure Admin Actions ---
 @app.route('/upload-quiz', methods=['POST'])
 def upload_quiz():
     admin_id = request.form.get('admin_id', '').strip()
-    if admin_id != OWNER_TELEGRAM_ID:
-        return "<h3>❌ Access Denied: Invalid Admin Telegram User ID! / अनुमति अस्वीकृत: गलत एडमिन आईडी!</h3>", 403
+    password = request.form.get('admin_password', '').strip()
+    
+    if admin_id != OWNER_TELEGRAM_ID or password != ADMIN_SECRET_PASSWORD:
+        return "<h3>❌ Access Denied: Invalid Admin ID or Password! / अनुमति अस्वीकृत: गलत आईडी या पासवर्ड!</h3>", 403
 
     try:
         quiz_title = request.form.get('quiz_title', 'Untitled Quiz').strip()
         category = request.form.get('category', 'Chapter-wise').strip()
         file = request.files.get('file')
         
-        if not file or file.filename == '':
-            return "<h3>❌ Error: No file selected!</h3>"
+        if not file or file.filename == '': return "<h3>❌ Error: No file selected!</h3>"
 
         file_bytes = file.read()
         file_name = file.filename.lower()
-        
         questions = []
+        
         if file_name.endswith('.json'):
             questions = json.loads(file_bytes.decode('utf-8'))
         elif file_name.endswith(('.txt', '.pdf')):
-            if file_name.endswith('.pdf'):
-                reader = PdfReader(io.BytesIO(file_bytes))
-                text_content = "".join([page.extract_text() for page in reader.pages if page.extract_text()])
-            else:
-                text_content = file_bytes.decode('utf-8')
+            text_content = "".join([page.extract_text() for page in PdfReader(io.BytesIO(file_bytes)).pages if page.extract_text()]) if file_name.endswith('.pdf') else file_bytes.decode('utf-8')
             questions = parse_text_regex(text_content)
             
-        if not questions:
-            return "<h3>❌ Error: No questions found!</h3>"
+        if not questions: return "<h3>❌ Error: No questions found!</h3>"
 
         quiz_id = str(int(time.time()))
-        quiz_data = {
-            "_id": quiz_id,
-            "title": quiz_title,
-            "category": category,
-            "questions": questions,
-            "created_at": time.strftime("%Y-%m-%d %H:%M:%S")
-        }
-        quizzes_collection.insert_one(quiz_data)
+        quizzes_collection.insert_one({"_id": quiz_id, "title": quiz_title, "category": category, "questions": questions, "created_at": time.strftime("%Y-%m-%d %H:%M:%S")})
         return redirect(url_for('preview_quiz', quiz_id=quiz_id))
     except Exception as e:
         return f"<h3>⚠️ Error: {str(e)}</h3>"
@@ -174,27 +142,15 @@ def upload_quiz():
 @app.route('/preview/<quiz_id>')
 def preview_quiz(quiz_id):
     doc = quizzes_collection.find_one({"_id": quiz_id})
-    if not doc:
-        return "<h3>❌ Quiz not found!</h3>"
-    quiz = {
-        "title": doc.get("title"),
-        "category": doc.get("category", "Chapter-wise"),
-        "questions": doc.get("questions"),
-        "created_at": doc.get("created_at")
-    }
-    return render_template('preview.html', quiz_id=quiz_id, quiz=quiz, owner_id=OWNER_TELEGRAM_ID)
+    if not doc: return "<h3>❌ Quiz not found!</h3>"
+    return render_template('preview.html', quiz_id=quiz_id, quiz=doc, owner_id=OWNER_TELEGRAM_ID)
 
 @app.route('/quiz-scores/<quiz_id>')
 def view_quiz_scores(quiz_id):
     doc = quizzes_collection.find_one({"_id": quiz_id})
-    if not doc:
-        return "<h3>❌ Quiz nahi mili!</h3>"
-    
+    if not doc: return "<h3>❌ Quiz nahi mili!</h3>"
     scores = list(scores_collection.find({"quiz_id": quiz_id}).sort("score", -1))
-    html = f"""
-    <!DOCTYPE html>
-    <html lang="hi">
-    <head><meta charset="UTF-8"><title>Leaderboard - {doc.get('title')}</title>
+    html = f"""<!DOCTYPE html><html lang="hi"><head><meta charset="UTF-8"><title>Leaderboard - {doc.get('title')}</title>
     <style>body {{ background-color: #121212; color: #fff; font-family: sans-serif; padding: 20px; }}
     .container {{ max-width: 650px; margin: 0 auto; background: #1e1e1e; padding: 25px; border-radius: 10px; border: 1px solid #333; }}
     h2 {{ color: #4caf50; text-align: center; }}
@@ -219,9 +175,8 @@ def view_quiz_scores(quiz_id):
 
 @app.route('/move-quiz/<quiz_id>', methods=['POST'])
 def move_quiz(quiz_id):
-    admin_id = request.form.get('admin_id', '').strip()
-    if admin_id != OWNER_TELEGRAM_ID:
-        return "<h3>❌ Access Denied: Invalid Admin ID! / अनुमति अस्वीकृत</h3>", 403
+    if request.form.get('admin_id') != OWNER_TELEGRAM_ID or request.form.get('admin_password') != ADMIN_SECRET_PASSWORD:
+        return "<h3>❌ Access Denied: Invalid Credentials! / अनुमति अस्वीकृत</h3>", 403
     
     new_category = request.form.get('category', 'Chapter-wise').strip()
     quizzes_collection.update_one({"_id": quiz_id}, {"$set": {"category": new_category}})
@@ -229,7 +184,6 @@ def move_quiz(quiz_id):
 
 @app.route('/update-question/<quiz_id>/<int:q_index>', methods=['POST'])
 def update_question(quiz_id, q_index):
-    # Note: Aap preview.html mein admin ID verify kar sakte hain ya yahan bhi check laga sakte hain
     doc = quizzes_collection.find_one({"_id": quiz_id})
     if doc:
         questions = doc.get("questions", [])
@@ -268,9 +222,8 @@ def delete_question(quiz_id, q_index):
 
 @app.route('/delete-quiz/<quiz_id>', methods=['POST'])
 def delete_quiz(quiz_id):
-    admin_id = request.form.get('admin_id', '').strip()
-    if admin_id != OWNER_TELEGRAM_ID:
-        return "<h3>❌ Access Denied: Invalid Admin ID! / अनुमति अस्वीकृत</h3>", 403
+    if request.form.get('admin_id') != OWNER_TELEGRAM_ID or request.form.get('admin_password') != ADMIN_SECRET_PASSWORD:
+        return "<h3>❌ Access Denied: Invalid Credentials! / अनुमति अस्वीकृत</h3>", 403
 
     quizzes_collection.delete_one({"_id": quiz_id})
     return redirect(url_for('home'))
@@ -279,9 +232,8 @@ def delete_quiz(quiz_id):
 def play_group(quiz_id):
     global active_quiz_running, stop_requested, current_active_quiz_id, current_negative_marking
     
-    input_admin_id = request.form.get('admin_id', '').strip()
-    if input_admin_id != OWNER_TELEGRAM_ID:
-        return "<h3>❌ Access Denied: Only Bot Owner can start the quiz!</h3>", 403
+    if request.form.get('admin_id') != OWNER_TELEGRAM_ID or request.form.get('admin_password') != ADMIN_SECRET_PASSWORD:
+        return "<h3>❌ Access Denied: Invalid Credentials!</h3>", 403
 
     doc = quizzes_collection.find_one({"_id": quiz_id})
     if not doc:
@@ -437,29 +389,25 @@ def send_leaderboard(chat_id):
     
     text += f"\n🏆 *{quiz_title}* 🏆\n\n📊 *FULL LEADERBOARD*\n-----------------------------------\n"
 
-    for rank, user in enumerate(top_users, 1):
-        name = user.get("user_name", "User")
-        score = user.get("score", 0.0)
-        correct = user.get("correct", 0)
-        incorrect = user.get("incorrect", 0)
-        accuracy = (correct / (correct + incorrect) * 100) if (correct + incorrect) > 0 else 0.0
+    for rank, u in enumerate(top_users, 1):
+        name = u.get("user_name", "User")
+        score = u.get("score", 0.0)
+        correct = u.get("correct", 0)
+        incorrect = u.get("incorrect", 0)
+        acc = (correct / (correct + incorrect) * 100) if (correct + incorrect) > 0 else 0.0
         medal = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else f"{rank}."
-        text += f"{medal} *{name}:*\n⭐ {score:.1f} | ✅ {correct} | ❌ {incorrect} | 🟢 {accuracy:.1f}%\n\n"
+        text += f"{medal} *{name}:*\n⭐ {score:.1f} | ✅ {correct} | ❌ {incorrect} | 🟢 {acc:.1f}%\n\n"
 
     if len(text) > 4000: text = text[:3900] + "\n\n... (Truncated)"
     send_message(chat_id, text)
 
 def send_message(chat_id, text):
-    try:
-        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}, timeout=5)
-    except Exception as e:
-        print(f"Send error: {e}")
+    try: requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"}, timeout=5)
+    except: pass
 
 def send_html_message(chat_id, text):
-    try:
-        requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id": chat_id, "text": text, "parse_mode": "HTML"}, timeout=5)
-    except Exception as e:
-        print(f"Send HTML error: {e}")
+    try: requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", data={"chat_id": chat_id, "text": text, "parse_mode": "HTML"}, timeout=5)
+    except: pass
 
 def parse_text_regex(text):
     parsed = []

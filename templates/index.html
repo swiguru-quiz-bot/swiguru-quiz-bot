@@ -3,127 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ExamGuru - My Quizzes</title>
+    <title>ExamGuru - Folders & Quizzes</title>
     <style>
-        body {
-            background-color: #121212;
-            color: #e0e0e0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 15px;
-        }
+        body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 15px; }
         .container { max-width: 500px; margin: 0 auto; }
-        .header-stats {
-            background: linear-gradient(135deg, #1e3c72, #2a5298);
-            padding: 15px;
-            border-radius: 12px;
-            display: flex;
-            justify-content: space-around;
-            text-align: center;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-        }
+        .header-stats { background: linear-gradient(135deg, #1e3c72, #2a5298); padding: 15px; border-radius: 12px; display: flex; justify-content: space-around; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
         .stat-box h3 { margin: 0; font-size: 20px; color: #fff; }
         .stat-box p { margin: 5px 0 0 0; font-size: 12px; color: #cfd8dc; }
-
-        .section-title { font-size: 13px; color: #9e9e9e; text-transform: uppercase; margin-bottom: 10px; font-weight: bold; }
-        
-        .folders-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-        .folder-card {
-            background: #1e1e1e;
-            padding: 12px;
-            border-radius: 8px;
-            border: 1px solid #2c2c2c;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .quiz-item {
-            background: #1e1e1e;
-            padding: 12px 15px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            border: 1px solid #2c2c2c;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            cursor: pointer;
-        }
+        .section-title { font-size: 13px; color: #9e9e9e; text-transform: uppercase; margin: 20px 0 10px 0; font-weight: bold; }
+        .folders-grid { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+        .folder-box { background: #1e1e1e; border-radius: 8px; border: 1px solid #2c2c2c; overflow: hidden; }
+        .folder-header { background: #252525; padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; font-weight: bold; color: #ff9800; font-size: 15px; }
+        .folder-header:hover { background: #2a2a2a; }
+        .folder-content { padding: 10px; display: none; background: #181818; border-top: 1px solid #2c2c2c; }
+        .folder-content.active { display: block; }
+        .quiz-item { background: #222; padding: 10px 12px; border-radius: 6px; margin-bottom: 8px; border: 1px solid #333; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .quiz-item:hover { background: #282828; }
         .quiz-info { flex: 1; overflow: hidden; }
-        .quiz-title { font-size: 15px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .quiz-meta { font-size: 12px; color: #888; margin-top: 3px; }
-
-        .menu-btn {
-            background: transparent;
-            border: none;
-            color: #aaa;
-            font-size: 20px;
-            cursor: pointer;
-            padding: 5px 10px;
-        }
+        .quiz-title { font-size: 14px; font-weight: 600; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .quiz-meta { font-size: 11px; color: #aaa; margin-top: 2px; }
+        .menu-btn { background: transparent; border: none; color: #aaa; font-size: 18px; cursor: pointer; padding: 5px 10px; }
         .menu-btn:hover { color: #fff; }
-
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.7);
-            justify-content: center;
-            align-items: flex-end;
-            z-index: 1000;
-        }
-        .modal-content {
-            background: #1e1e1e;
-            width: 100%;
-            max-width: 500px;
-            border-top-left-radius: 16px;
-            border-top-right-radius: 16px;
-            padding: 20px;
-            box-sizing: border-box;
-            border-top: 1px solid #333;
-        }
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            border-bottom: 1px solid #2c2c2c;
-            padding-bottom: 10px;
-        }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); justify-content: center; align-items: flex-end; z-index: 1000; }
+        .modal-content { background: #1e1e1e; width: 100%; max-width: 500px; border-top-left-radius: 16px; border-top-right-radius: 16px; padding: 20px; box-sizing: border-box; border-top: 1px solid #333; max-height: 90vh; overflow-y: auto; }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid #2c2c2c; padding-bottom: 10px; }
         .modal-header h3 { margin: 0; color: #fff; font-size: 18px; }
         .close-modal { background: #2c2c2c; border: none; color: #fff; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; font-size: 16px; }
-
-        .modal-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        .modal-btn {
-            background: #252525;
-            color: #fff;
-            border: 1px solid #333;
-            padding: 12px;
-            border-radius: 8px;
-            text-align: center;
-            text-decoration: none;
-            font-size: 14px;
-            font-weight: 600;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 5px;
-        }
+        .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .modal-btn { background: #252525; color: #fff; border: 1px solid #333; padding: 12px; border-radius: 8px; text-align: center; text-decoration: none; font-size: 14px; font-weight: 600; display: flex; flex-direction: column; align-items: center; gap: 5px; }
         .modal-btn:hover { background: #2f2f2f; }
         .modal-btn.full { grid-column: span 2; flex-direction: row; justify-content: center; background: #2196f3; border: none; }
         .modal-btn.delete { background: #c62828; border: none; }
-
         .upload-section { background: #1e1e1e; padding: 15px; border-radius: 8px; margin-top: 20px; border: 1px solid #2c2c2c; }
         input, select { width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 6px; box-sizing: border-box; margin-bottom: 10px; }
         .btn-submit { background: #4caf50; color: white; padding: 12px; border: none; border-radius: 6px; font-weight: bold; width: 100%; cursor: pointer; }
@@ -133,43 +43,71 @@
 
     <div class="container">
         <div class="header-stats">
-            <div class="stat-box">
-                <h3>{{ quizzes|length }}</h3>
-                <p>Quizzes</p>
-            </div>
-            <div class="stat-box">
-                <h3>📁 2</h3>
-                <p>Folders</p>
-            </div>
+            <div class="stat-box"><h3>{{ quizzes|length }}</h3><p>Total Quizzes</p></div>
+            <div class="stat-box"><h3>📁 2</h3><p>Folders</p></div>
         </div>
 
-        <div class="section-title">YOUR LIBRARY / FOLDERS</div>
+        <div class="section-title">YOUR FOLDERS LIBRARY</div>
+        
         <div class="folders-grid">
-            <div class="folder-card"><span>📁 Chapter-wise</span><span>⋮</span></div>
-            <div class="folder-card"><span>📁 PYQ (Previous Year)</span><span>⋮</span></div>
-        </div>
-
-        <div class="section-title">ALL QUIZZES</div>
-
-        {% if quizzes %}
-            {% for q_id, q_data in quizzes.items() %}
-                <div class="quiz-item" onclick="openModal('{{ q_id }}', '{{ q_data.title }}')">
-                    <div class="quiz-info">
-                        <div class="quiz-title">📄 {{ q_data.title }}</div>
-                        <div class="quiz-meta">📝 {{ q_data.questions|length }} Sawaal &nbsp;|&nbsp; 📁 {{ q_data.category }}</div>
-                    </div>
-                    <button class="menu-btn">⋮</button>
+            <div class="folder-box">
+                <div class="folder-header" onclick="toggleFolder('chapterFolder')">
+                    <span>📁 Chapter-wise Quizzes</span>
+                    <span>▼</span>
                 </div>
-            {% endfor %}
-        {% else %}
-            <p style="text-align: center; color: #777;">No quizzes found. Upload below!</p>
-        {% endif %}
+                <div id="chapterFolder" class="folder-content">
+                    {% set ns = namespace(count=0) %}
+                    {% for q_id, q_data in quizzes.items() %}
+                        {% if q_data.category == "Chapter-wise" %}
+                            {% set ns.count = ns.count + 1 %}
+                            <div class="quiz-item" onclick="openModal('{{ q_id }}', '{{ q_data.title }}')">
+                                <div class="quiz-info">
+                                    <div class="quiz-title">📄 {{ q_data.title }}</div>
+                                    <div class="quiz-meta">📝 {{ q_data.questions|length }} Sawaal &nbsp;|&nbsp; 🕒 {{ q_data.created_at }}</div>
+                                </div>
+                                <button class="menu-btn">⋮</button>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                    {% if ns.count == 0 %}
+                        <p style="text-align: center; color: #666; font-size: 13px; margin: 10px 0;">No quizzes in this folder.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="folder-box">
+                <div class="folder-header" onclick="toggleFolder('pyqFolder')">
+                    <span>📁 PYQ (Previous Year) Quizzes</span>
+                    <span>▼</span>
+                </div>
+                <div id="pyqFolder" class="folder-content">
+                    {% set ns2 = namespace(count=0) %}
+                    {% for q_id, q_data in quizzes.items() %}
+                        {% if q_data.category == "PYQ (Previous Year)" %}
+                            {% set ns2.count = ns2.count + 1 %}
+                            <div class="quiz-item" onclick="openModal('{{ q_id }}', '{{ q_data.title }}')">
+                                <div class="quiz-info">
+                                    <div class="quiz-title">📄 {{ q_data.title }}</div>
+                                    <div class="quiz-meta">📝 {{ q_data.questions|length }} Sawaal &nbsp;|&nbsp; 🕒 {{ q_data.created_at }}</div>
+                                </div>
+                                <button class="menu-btn">⋮</button>
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                    {% if ns2.count == 0 %}
+                        <p style="text-align: center; color: #666; font-size: 13px; margin: 10px 0;">No quizzes in this folder.</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
 
         <div class="upload-section">
-            <div class="section-title" style="margin-bottom: 10px;">➕ Upload New Quiz (Admin Only)</div>
+            <div class="section-title" style="margin-top:0; margin-bottom: 10px;">➕ Upload New Quiz (Admin Secure)</div>
             <form action="/upload-quiz" method="POST" enctype="multipart/form-data">
-                <label style="font-size: 12px; color: #aaa;">Your Telegram User ID:</label>
-                <input type="text" name="admin_id" placeholder="Enter Admin ID" required>
+                <label style="font-size: 12px; color: #aaa;">Telegram User ID:</label>
+                <input type="text" name="admin_id" value="{{ owner_id }}" required>
+                <label style="font-size: 12px; color: #aaa;">Admin Secret Password:</label>
+                <input type="password" name="admin_password" placeholder="Enter Password" required>
                 <input type="text" name="quiz_title" placeholder="Quiz Title (जैसे: Leave Rules)" required>
                 <select name="category">
                     <option value="Chapter-wise">📁 Chapter-wise</option>
@@ -195,10 +133,10 @@
                 <a id="btnEdit" href="#" class="modal-btn full"><span>✏️</span> Edit Content & Questions</a>
             </div>
 
-            <!-- Move Form with Admin Verification -->
             <form id="moveForm" action="" method="POST" style="margin-bottom: 10px; background: #252525; padding: 10px; border-radius: 8px;">
-                <label style="font-size: 12px; color: #aaa; display: block; margin-bottom: 5px;">Admin ID & Move Folder:</label>
-                <input type="text" name="admin_id" placeholder="Enter Admin ID" required style="margin-bottom: 8px; padding: 8px;">
+                <label style="font-size: 12px; color: #aaa; display: block; margin-bottom: 5px;">Move to Folder (Secure):</label>
+                <input type="text" name="admin_id" value="{{ owner_id }}" required style="margin-bottom: 5px; padding: 8px;">
+                <input type="password" name="admin_password" placeholder="Admin Password" required style="margin-bottom: 5px; padding: 8px;">
                 <div style="display: flex; gap: 5px;">
                     <select name="category" style="margin: 0; padding: 8px;">
                         <option value="Chapter-wise">Chapter-wise</option>
@@ -208,15 +146,19 @@
                 </div>
             </form>
 
-            <!-- Delete Form with Admin Verification -->
-            <form id="deleteForm" action="" method="POST" onsubmit="return confirm('Kya aap is quiz ko delete karna chahte hain?');">
-                <input type="text" name="admin_id" placeholder="Enter Admin ID to Delete" required style="margin-bottom: 8px; padding: 8px;">
-                <button type="submit" class="modal-btn full delete" style="width: 100%;"><span>🗑️</span> Delete Quiz</button>
+            <form id="deleteForm" action="" method="POST" onsubmit="return confirm('Kya aap is quiz ko delete karna chahte hain?');" style="background: #252525; padding: 10px; border-radius: 8px;">
+                <label style="font-size: 12px; color: #aaa; display: block; margin-bottom: 5px;">Delete Quiz (Secure):</label>
+                <input type="text" name="admin_id" value="{{ owner_id }}" required style="margin-bottom: 5px; padding: 8px;">
+                <input type="password" name="admin_password" placeholder="Admin Password" required style="margin-bottom: 8px; padding: 8px;">
+                <button type="submit" class="modal-btn full delete" style="width: 100%;"><span>🗑</span> Delete Quiz</button>
             </form>
         </div>
     </div>
 
     <script>
+        function toggleFolder(folderId) {
+            document.getElementById(folderId).classList.toggle('active');
+        }
         function openModal(quizId, quizTitle) {
             document.getElementById('modalTitle').innerText = quizTitle;
             document.getElementById('btnPreview').href = '/preview/' + quizId;
@@ -226,7 +168,6 @@
             document.getElementById('deleteForm').action = '/delete-quiz/' + quizId;
             document.getElementById('quizModal').style.display = 'flex';
         }
-
         function closeModal() { document.getElementById('quizModal').style.display = 'none'; }
         window.onclick = function(event) { if (event.target == document.getElementById('quizModal')) { closeModal(); } }
     </script>
